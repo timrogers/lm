@@ -5,7 +5,7 @@ use reqwest::{Client as ReqwestClient, Method};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
-const CUSTOMER_APP_URL: &str = "https://cms-api.lamarzocco.io/api/v2/home/lm";
+const CUSTOMER_APP_URL: &str = "https://lion.lamarzocco.io/api/customer-app";
 
 /// Client for interacting with the La Marzocco API
 pub struct Client {

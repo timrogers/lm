@@ -6,11 +6,13 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuthResponse {
     /// Access token for API requests
+    #[serde(rename = "accessToken")]
     pub access_token: String,
     /// Refresh token for getting new access tokens
+    #[serde(rename = "refreshToken")]
     pub refresh_token: String,
-    /// When the token expires in seconds
-    pub expires_in: i64,
+    /// Username (email) of the authenticated user
+    pub username: String,
 }
 
 /// Stored credentials in the config file

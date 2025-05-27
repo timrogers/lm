@@ -6,7 +6,7 @@ use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 
-const CUSTOMER_APP_URL: &str = "https://cms-api.lamarzocco.io/api/v2/home/lm";
+const CUSTOMER_APP_URL: &str = "https://lion.lamarzocco.io/api/customer-app";
 const CONFIG_FILENAME: &str = ".lm.yml";
 const TOKEN_REFRESH_WINDOW_SECS: i64 = 600; // 10 minutes before token expires
 
