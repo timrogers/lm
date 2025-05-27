@@ -1,6 +1,6 @@
 use crate::error::{LaMarzoccoError, Result};
 use crate::models::{AuthResponse, Credentials};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use dirs::home_dir;
 use serde_json::json;
 use std::fs;
@@ -115,7 +115,7 @@ impl Auth {
 
     /// Refresh the token using the refresh token
     async fn refresh_token(&mut self) -> Result<()> {
-        let credentials = self.load_credentials()?;
+        let credentials = self.load_credentials()?.clone(); // Clone to avoid borrow conflicts
         let refresh_url = format!("{}/auth/refreshtoken", CUSTOMER_APP_URL);
 
         let response = self
