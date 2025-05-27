@@ -72,7 +72,8 @@ impl LaMarzoccoClient {
         }
     }
 
-    fn extract_jwt_expiry(token: &str) -> Result<u64> {
+    #[doc(hidden)]
+    pub fn extract_jwt_expiry(token: &str) -> Result<u64> {
         let mut validation = Validation::default();
         validation.insecure_disable_signature_validation();
 
