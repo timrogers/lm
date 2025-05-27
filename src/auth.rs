@@ -2,18 +2,29 @@ use crate::error::{LaMarzoccoError, Result};
 use crate::models::{AuthResponse, Credentials};
 use chrono::{Duration, Utc};
 use dirs::home_dir;
+use jsonwebtoken::{decode, DecodingKey, Validation};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::fs;
 use std::path::PathBuf;
 
 const CUSTOMER_APP_URL: &str = "https://lion.lamarzocco.io/api/customer-app";
 const CONFIG_FILENAME: &str = ".lm.yml";
 const TOKEN_REFRESH_WINDOW_SECS: i64 = 600; // 10 minutes before token expires
 
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenClaims {
+    exp: i64,
+    // Other fields in the token are not needed for our use case
+}
+
+/// Token refresh callback function
+pub type TokenRefreshCallback = Box<dyn FnMut(&Credentials) -> Result<()> + Send>;
+
 /// Handles authentication and token storage for La Marzocco API
 pub struct Auth {
     credentials: Option<Credentials>,
     client: reqwest::Client,
+    refresh_callback: Option<TokenRefreshCallback>,
 }
 
 impl Auth {
@@ -22,6 +33,35 @@ impl Auth {
         Auth {
             credentials: None,
             client: reqwest::Client::new(),
+            refresh_callback: None,
+        }
+    }
+
+    /// Set a callback for token refresh events
+    pub fn set_refresh_callback(&mut self, callback: TokenRefreshCallback) {
+        self.refresh_callback = Some(callback);
+    }
+
+    /// Extract expiry from access token
+    pub fn extract_token_expiry(token: &str) -> Result<chrono::DateTime<Utc>> {
+        // Token may not have the standard 3 parts, so we'll handle errors gracefully
+        let validation = Validation::default();
+        
+        // JWT tokens don't need validation just to extract the expiry
+        match decode::<TokenClaims>(
+            token,
+            &DecodingKey::from_secret(&[]), // dummy key since we're not validating signature
+            &validation,
+        ) {
+            Ok(token_data) => {
+                let exp_timestamp = token_data.claims.exp;
+                Ok(chrono::DateTime::<Utc>::from_timestamp(exp_timestamp, 0)
+                    .ok_or_else(|| LaMarzoccoError::ConfigError("Invalid token expiry".to_string()))?)
+            }
+            Err(_) => {
+                // If we can't extract the expiry, use a default expiry of 1 hour from now
+                Ok(Utc::now() + Duration::hours(1))
+            }
         }
     }
 
@@ -48,23 +88,15 @@ impl Auth {
             ));
         }
 
-        let config_data = fs::read_to_string(&config_path)?;
+        let config_data = std::fs::read_to_string(&config_path)?;
         let credentials: Credentials = serde_yaml::from_str(&config_data)?;
         self.credentials = Some(credentials);
 
         Ok(self.credentials.as_ref().unwrap())
     }
 
-    /// Save credentials to config file
-    pub fn save_credentials(&self, credentials: &Credentials) -> Result<()> {
-        let config_path = Self::get_config_path()?;
-        let config_data = serde_yaml::to_string(credentials)?;
-        fs::write(config_path, config_data)?;
-        Ok(())
-    }
-
     /// Authenticate and get a token
-    pub async fn authenticate(&mut self, username: &str, password: &str) -> Result<()> {
+    pub async fn authenticate(&mut self, username: &str, password: &str) -> Result<Credentials> {
         let auth_url = format!("{}/auth/signin", CUSTOMER_APP_URL);
 
         let response = self
@@ -79,8 +111,9 @@ impl Auth {
 
         if response.status().is_success() {
             let auth_response: AuthResponse = response.json().await?;
-            // Calculate expiration time
-            let expires_at = Utc::now() + Duration::seconds(auth_response.expires_in);
+            
+            // Extract expiry time from token
+            let expires_at = Self::extract_token_expiry(&auth_response.access_token)?;
 
             let credentials = Credentials {
                 username: username.to_string(),
@@ -89,9 +122,8 @@ impl Auth {
                 expires_at,
             };
 
-            self.save_credentials(&credentials)?;
-            self.credentials = Some(credentials);
-            Ok(())
+            self.credentials = Some(credentials.clone());
+            Ok(credentials)
         } else {
             Err(LaMarzoccoError::ApiError {
                 status_code: response.status().as_u16(),
@@ -106,15 +138,21 @@ impl Auth {
         
         // Check if token is expired or will expire soon
         if Utc::now() + Duration::seconds(TOKEN_REFRESH_WINDOW_SECS) >= credentials.expires_at {
-            self.refresh_token().await?;
-            return Ok(self.credentials.as_ref().unwrap().access_token.clone());
+            let refreshed_credentials = self.refresh_token().await?;
+            
+            // Notify callback if provided
+            if let Some(ref mut callback) = self.refresh_callback {
+                callback(&refreshed_credentials)?;
+            }
+            
+            return Ok(refreshed_credentials.access_token.clone());
         }
         
         Ok(credentials.access_token.clone())
     }
 
     /// Refresh the token using the refresh token
-    async fn refresh_token(&mut self) -> Result<()> {
+    async fn refresh_token(&mut self) -> Result<Credentials> {
         let credentials = self.load_credentials()?.clone(); // Clone to avoid borrow conflicts
         let refresh_url = format!("{}/auth/refreshtoken", CUSTOMER_APP_URL);
 
@@ -130,19 +168,19 @@ impl Auth {
 
         if response.status().is_success() {
             let auth_response: AuthResponse = response.json().await?;
-            // Calculate expiration time
-            let expires_at = Utc::now() + Duration::seconds(auth_response.expires_in);
+            
+            // Extract expiry time from token
+            let expires_at = Self::extract_token_expiry(&auth_response.access_token)?;
 
             let new_credentials = Credentials {
-                username: credentials.username.clone(),
+                username: credentials.username,
                 access_token: auth_response.access_token,
                 refresh_token: auth_response.refresh_token,
                 expires_at,
             };
 
-            self.save_credentials(&new_credentials)?;
-            self.credentials = Some(new_credentials);
-            Ok(())
+            self.credentials = Some(new_credentials.clone());
+            Ok(new_credentials)
         } else {
             Err(LaMarzoccoError::ApiError {
                 status_code: response.status().as_u16(),

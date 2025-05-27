@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use lm::{Client, Machine};
-use std::process::exit;
+use rpassword::prompt_password;
+use std::{fs, io::{self, Write}, process::exit};
 
 #[derive(Parser)]
 #[command(author, version, about = "Control La Marzocco espresso machines")]
@@ -16,10 +17,10 @@ enum Commands {
     Login {
         /// Email address
         #[arg(long)]
-        email: String,
+        email: Option<String>,
         /// Password
         #[arg(long)]
-        password: String,
+        password: Option<String>,
     },
     /// Show status of connected espresso machines
     Status,
@@ -37,12 +38,25 @@ enum Commands {
     },
 }
 
+/// Save credentials to config file
+fn save_credentials(credentials: &lm::models::Credentials) -> Result<()> {
+    let config_path = lm::auth::Auth::get_config_path()?;
+    let config_data = serde_yaml::to_string(credentials)?;
+    fs::write(config_path, config_data)?;
+    Ok(())
+}
+
 /// Configure a CLI client
 async fn configure_client() -> Result<Client> {
-    let client = Client::new();
+    let mut client = Client::new();
     
-    // We don't need to do anything else here - token loading is handled automatically
-    // when needed by the client
+    // Set a callback to save refreshed tokens
+    client.set_token_refresh_callback(Box::new(|credentials| {
+        match save_credentials(credentials) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(lm::error::LaMarzoccoError::ConfigError(e.to_string())),
+        }
+    }))?;
     
     Ok(client)
 }
@@ -90,15 +104,46 @@ fn display_status(machine: &Machine) {
     println!("Ready status: {}", if machine.is_ready { "READY" } else { "NOT READY" });
 }
 
+/// Prompt for email if not provided
+fn prompt_for_email(provided_email: Option<String>) -> Result<String> {
+    match provided_email {
+        Some(email) => Ok(email),
+        None => {
+            print!("Email: ");
+            io::stdout().flush()?;
+            let mut email = String::new();
+            io::stdin().read_line(&mut email)?;
+            Ok(email.trim().to_string())
+        }
+    }
+}
+
+/// Prompt for password securely if not provided
+fn prompt_for_password(provided_password: Option<String>) -> Result<String> {
+    match provided_password {
+        Some(password) => Ok(password),
+        None => {
+            let password = prompt_password("Password: ")?;
+            Ok(password)
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Some(Commands::Login { email, password }) => {
+            // Prompt for email and password if not provided
+            let email = prompt_for_email(email)?;
+            let password = prompt_for_password(password)?;
+            
+            // Create client and authenticate
             let mut client = Client::new();
             match client.authenticate(&email, &password).await {
-                Ok(_) => {
+                Ok(credentials) => {
+                    save_credentials(&credentials)?;
                     println!("Successfully logged in and saved credentials");
                 }
                 Err(e) => {

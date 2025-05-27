@@ -1,6 +1,6 @@
-use crate::auth::Auth;
+use crate::auth::{Auth, TokenRefreshCallback};
 use crate::error::{LaMarzoccoError, Result};
-use crate::models::{CommandResponse, Thing, ThingDashboardConfig};
+use crate::models::{CommandResponse, Credentials, Thing, ThingDashboardConfig};
 use reqwest::{Client as ReqwestClient, Method};
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -22,8 +22,14 @@ impl Client {
         }
     }
 
+    /// Set a callback for token refresh events
+    pub fn set_token_refresh_callback(&mut self, callback: TokenRefreshCallback) -> Result<()> {
+        self.auth.set_refresh_callback(callback);
+        Ok(())
+    }
+
     /// Authenticate with username and password
-    pub async fn authenticate(&mut self, username: &str, password: &str) -> Result<()> {
+    pub async fn authenticate(&mut self, username: &str, password: &str) -> Result<Credentials> {
         self.auth.authenticate(username, password).await
     }
 

@@ -13,6 +13,9 @@ pub struct AuthResponse {
     pub refresh_token: String,
     /// Username (email) of the authenticated user
     pub username: String,
+    /// Expiration time in seconds
+    #[serde(rename = "expiresIn", default)]
+    pub expires_in: i64,
 }
 
 /// Stored credentials in the config file
