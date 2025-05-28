@@ -1,14 +1,18 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod auth;
+pub mod client;
+pub mod config;
+pub mod error;
+pub mod models;
+
+pub use client::LaMarzoccoClient;
+pub use error::Error;
+pub use models::{Machine, MachineStatus};
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+        // Basic test to ensure compilation
+        assert_eq!(2 + 2, 4);
     }
 }
