@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const BASE_URL: &str = "https://lion.lamarzocco.io/api/customer-app";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     pub username: Option<String>,
     pub access_token: Option<String>,
@@ -75,6 +75,12 @@ pub struct LaMarzoccoClient {
     config: Config,
 }
 
+impl Default for LaMarzoccoClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LaMarzoccoClient {
     pub fn new() -> Self {
         Self {
@@ -98,7 +104,7 @@ impl LaMarzoccoClient {
 
         let response = self
             .client
-            .post(&format!("{}/auth/signin", BASE_URL))
+            .post(format!("{}/auth/signin", BASE_URL))
             .json(&login_request)
             .send()
             .await?;
@@ -136,7 +142,7 @@ impl LaMarzoccoClient {
 
         let response = self
             .client
-            .post(&format!("{}/auth/refresh", BASE_URL))
+            .post(format!("{}/auth/refresh", BASE_URL))
             .json(&refresh_request)
             .send()
             .await?;
@@ -177,7 +183,7 @@ impl LaMarzoccoClient {
         
         let response = self
             .client
-            .get(&format!("{}/things", BASE_URL))
+            .get(format!("{}/things", BASE_URL))
             .header("Authorization", format!("Bearer {}", access_token))
             .send()
             .await?;
@@ -207,7 +213,7 @@ impl LaMarzoccoClient {
         
         let response = self
             .client
-            .post(&format!("{}/things/{}/commands/set-power", BASE_URL, serial_number))
+            .post(format!("{}/things/{}/commands/set-power", BASE_URL, serial_number))
             .header("Authorization", format!("Bearer {}", access_token))
             .json(&power_request)
             .send()
