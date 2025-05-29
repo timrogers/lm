@@ -34,7 +34,7 @@ pub async fn authenticate_with_url(
     };
 
     let response = client
-        .post(&format!("{}/auth/signin", base_url))
+        .post(format!("{}/auth/signin", base_url))
         .json(&login_request)
         .send()
         .await?;

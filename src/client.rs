@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log::{debug, error};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use serde_json;
 
 use crate::auth;
 use crate::types::{Machine, MachineCommand, MachineStatus, MachinesResponse};
@@ -10,6 +9,12 @@ pub struct LaMarzoccoClient {
     client: reqwest::Client,
     access_token: Option<String>,
     base_url: String,
+}
+
+impl Default for LaMarzoccoClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LaMarzoccoClient {
@@ -22,15 +27,18 @@ impl LaMarzoccoClient {
     }
 
     // Test-specific accessor methods
+    #[allow(dead_code)]
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
 
+    #[allow(dead_code)]
     pub fn access_token(&self) -> &Option<String> {
         &self.access_token
     }
 
     // Test-specific constructor for custom base URLs
+    #[allow(dead_code)]
     pub fn new_with_base_url(base_url: String) -> Self {
         Self {
             client: reqwest::Client::new(),

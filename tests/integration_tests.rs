@@ -81,8 +81,8 @@ async fn test_get_machines_with_mock_server() {
     assert_eq!(machines[1].serial_number, "GS001234");
     assert_eq!(machines[0].name, Some("Linea Micra".to_string()));
     assert_eq!(machines[1].name, Some("Office Machine".to_string()));
-    assert_eq!(machines[0].connected, true);
-    assert_eq!(machines[1].connected, false);
+    assert!(machines[0].connected);
+    assert!(!machines[1].connected);
 }
 
 #[tokio::test]
@@ -239,7 +239,7 @@ async fn test_json_fixture_parsing() {
     assert_eq!(machines[0].serial_number, "MR033274");
     assert_eq!(machines[0].model, Some("LINEA MICRA".to_string()));
     assert_eq!(machines[0].name, Some("Linea Micra".to_string()));
-    assert_eq!(machines[0].connected, true);
+    assert!(machines[0].connected);
 
     // Test machine status JSON parsing
     let status_on: MachineStatus =
