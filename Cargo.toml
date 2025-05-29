@@ -2,6 +2,13 @@
 name = "lm"
 version = "0.1.0"
 edition = "2021"
+description = "A command-line interface for controlling La Marzocco espresso machines remotely"
+authors = ["Tim Rogers <me@timrogers.co.uk>"]
+license = "MIT"
+repository = "https://github.com/timrogers/lm"
+homepage = "https://github.com/timrogers/lm"
+keywords = ["cli", "espresso", "lamarzocco", "coffee"]
+categories = ["command-line-utilities"]
 
 [[bin]]
 name = "lm"

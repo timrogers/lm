@@ -69,7 +69,7 @@ jobs:
         name: lm-${{ matrix.target }}
         path: artifacts/lm-${{ matrix.target }}${{ matrix.binary_suffix }}
 
-  publish:
+  release:
     needs: build
     runs-on: ubuntu-latest
     
@@ -85,46 +85,20 @@ jobs:
       with:
         path: artifacts
         
-    - name: Create release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
-        draft: false
-        prerelease: false
+    - name: Rename binaries
+      run: |
+        mv artifacts/lm-x86_64-unknown-linux-gnu/lm-x86_64-unknown-linux-gnu artifacts/lm-linux-x86_64
+        mv artifacts/lm-x86_64-pc-windows-msvc/lm-x86_64-pc-windows-msvc.exe artifacts/lm-windows-x86_64.exe
+        mv artifacts/lm-x86_64-apple-darwin/lm-x86_64-apple-darwin artifacts/lm-macos-x86_64
         
-    - name: Upload Linux binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create GitHub release
+      uses: softprops/action-gh-release@v2
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/lm-x86_64-unknown-linux-gnu/lm-x86_64-unknown-linux-gnu
-        asset_name: lm-linux-x86_64
-        asset_content_type: application/octet-stream
-        
-    - name: Upload Windows binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/lm-x86_64-pc-windows-msvc/lm-x86_64-pc-windows-msvc.exe
-        asset_name: lm-windows-x86_64.exe
-        asset_content_type: application/octet-stream
-        
-    - name: Upload macOS binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: artifacts/lm-x86_64-apple-darwin/lm-x86_64-apple-darwin
-        asset_name: lm-macos-x86_64
-        asset_content_type: application/octet-stream
+        files: |
+          artifacts/lm-linux-x86_64
+          artifacts/lm-windows-x86_64.exe
+          artifacts/lm-macos-x86_64
+        generate_release_notes: true
         
     - name: Publish to crates.io
       env:
