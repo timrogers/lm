@@ -44,7 +44,7 @@ pub fn get_config_path() -> Result<PathBuf> {
 /// Load configuration from ~/.lm.yml
 pub fn load_config() -> Result<Config> {
     let config_path = get_config_path()?;
-    
+
     if !config_path.exists() {
         return Err(anyhow::anyhow!(
             "Configuration file not found. Please run 'lm login' first."
@@ -64,9 +64,8 @@ pub fn load_config() -> Result<Config> {
 /// Save configuration to ~/.lm.yml
 pub fn save_config(config: &Config) -> Result<()> {
     let config_path = get_config_path()?;
-    
-    let content = serde_yaml::to_string(config)
-        .context("Failed to serialize configuration")?;
+
+    let content = serde_yaml::to_string(config).context("Failed to serialize configuration")?;
 
     fs::write(&config_path, content)
         .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
@@ -78,7 +77,7 @@ pub fn save_config(config: &Config) -> Result<()> {
 /// Clear the configuration file (logout)
 pub fn clear_config() -> Result<()> {
     let config_path = get_config_path()?;
-    
+
     if config_path.exists() {
         fs::remove_file(&config_path)
             .with_context(|| format!("Failed to remove config file: {}", config_path.display()))?;
@@ -86,7 +85,7 @@ pub fn clear_config() -> Result<()> {
     } else {
         warn!("Configuration file does not exist, nothing to clear");
     }
-    
+
     Ok(())
 }
 

@@ -14,7 +14,9 @@ use lm::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallb
 /// Check if an error indicates authentication failure and clear config if so
 fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
     let error_msg = e.to_string();
-    if error_msg.contains("Please re-authenticate") || error_msg.contains("Authentication failed. Please run 'lm login' again.") {
+    if error_msg.contains("Please re-authenticate")
+        || error_msg.contains("Authentication failed. Please run 'lm login' again.")
+    {
         warn!("Stored credentials are invalid, clearing config file");
         let _ = config::clear_config();
         return anyhow::anyhow!("Stored credentials are invalid. Please run 'lm login' again.");
@@ -89,7 +91,7 @@ struct CliTokenCallback;
 impl TokenRefreshCallback for CliTokenCallback {
     fn on_tokens_refreshed(&self, credentials: &Credentials) {
         debug!("Tokens refreshed for user: {}", credentials.username);
-        
+
         // Save the refreshed tokens to the config file
         let config = config::Config::from(credentials);
         if let Err(e) = config::save_config(&config) {
@@ -196,7 +198,7 @@ async fn main() -> Result<()> {
             match cli.command {
                 Commands::Machines => {
                     info!("Fetching machine list...");
-                    
+
                     let machines = match api_client.get_machines().await {
                         Ok(machines) => machines,
                         Err(e) => return Err(handle_auth_error(e)),
@@ -245,7 +247,7 @@ async fn main() -> Result<()> {
                                 Ok(machines) => machines,
                                 Err(e) => return Err(handle_auth_error(e)),
                             };
-                            
+
                             if machines.is_empty() {
                                 return Err(anyhow::anyhow!("No machines found for this account."));
                             }
@@ -260,7 +262,7 @@ async fn main() -> Result<()> {
 
                     info!("Turning on machine {}", machine_serial);
                     match api_client.turn_on_machine(&machine_serial).await {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(e) => return Err(handle_auth_error(e)),
                     }
 
@@ -278,7 +280,7 @@ async fn main() -> Result<()> {
                                 Ok(machines) => machines,
                                 Err(e) => return Err(handle_auth_error(e)),
                             };
-                            
+
                             if machines.is_empty() {
                                 return Err(anyhow::anyhow!("No machines found for this account."));
                             }
@@ -293,10 +295,10 @@ async fn main() -> Result<()> {
 
                     info!("Turning off machine {}", machine_serial);
                     match api_client.turn_off_machine(&machine_serial).await {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(e) => return Err(handle_auth_error(e)),
                     }
-                    
+
                     println!("Machine {} turned off (standby mode).", machine_serial);
                 }
                 _ => unreachable!(),
