@@ -21,6 +21,20 @@ pub struct LoginResponse {
     pub refresh_token: Option<String>,
 }
 
+#[derive(Serialize)]
+pub struct RefreshRequest {
+    #[serde(rename = "refreshToken")]
+    pub refresh_token: String,
+}
+
+#[derive(Deserialize)]
+pub struct RefreshResponse {
+    #[serde(rename = "accessToken")]
+    pub access_token: String,
+    #[serde(rename = "refreshToken")]
+    pub refresh_token: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct ErrorResponse {
     #[allow(dead_code)]
@@ -83,6 +97,12 @@ pub struct AuthenticationClient {
     base_url: String,
 }
 
+impl Default for AuthenticationClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuthenticationClient {
     pub fn new() -> Self {
         Self {
@@ -135,6 +155,69 @@ impl AuthenticationClient {
             Err(anyhow::anyhow!("Authentication failed: {}", response_text))
         }
     }
+
+    /// Refresh access token using refresh token
+    pub async fn refresh_token(&self, refresh_token: &str) -> Result<AuthTokens> {
+        let refresh_request = RefreshRequest {
+            refresh_token: refresh_token.to_string(),
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/auth/refresh", self.base_url))
+            .json(&refresh_request)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let response_text = response.text().await?;
+
+        if status.is_success() {
+            match serde_json::from_str::<RefreshResponse>(&response_text) {
+                Ok(refresh_response) => {
+                    debug!("Token refresh successful");
+                    // For refresh response, we need to extract username from the JWT token
+                    // or use a placeholder since the username shouldn't change
+                    let username = self.extract_username_from_token(&refresh_response.access_token)
+                        .unwrap_or_else(|| "unknown".to_string());
+                    
+                    Ok(AuthTokens {
+                        access_token: refresh_response.access_token,
+                        refresh_token: refresh_response.refresh_token.or_else(|| Some(refresh_token.to_string())),
+                        username,
+                    })
+                }
+                Err(e) => {
+                    debug!("Failed to parse refresh response: {}", e);
+                    Err(anyhow::anyhow!("Failed to parse token refresh response"))
+                }
+            }
+        } else {
+            debug!("Token refresh failed with status: {}", status);
+            Err(anyhow::anyhow!("Token refresh failed: {}", response_text))
+        }
+    }
+
+    /// Extract username from JWT token claims
+    fn extract_username_from_token(&self, token: &str) -> Option<String> {
+        // Handle test tokens that don't start with "ey" (not JWT format)
+        if !token.starts_with("ey") {
+            return None;
+        }
+
+        // For JWT tokens, we need to disable signature validation to just read the claims
+        let mut validation = Validation::new(Algorithm::HS512);
+        validation.insecure_disable_signature_validation();
+
+        match decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(&[]), // Secret not used when signature validation is disabled
+            &validation,
+        ) {
+            Ok(token_data) => Some(token_data.claims.sub),
+            Err(_) => None,
+        }
+    }
 }
 
 /// API client with automatic JWT token refresh
@@ -142,8 +225,8 @@ pub struct ApiClient {
     client: reqwest::Client,
     base_url: String,
     tokens: AuthTokens,
-    #[allow(dead_code)]
     refresh_callback: Option<Arc<dyn TokenRefreshCallback>>,
+    auth_client: AuthenticationClient,
 }
 
 impl ApiClient {
@@ -153,6 +236,7 @@ impl ApiClient {
             base_url: "https://lion.lamarzocco.io/api/customer-app".to_string(),
             tokens,
             refresh_callback,
+            auth_client: AuthenticationClient::new(),
         }
     }
 
@@ -163,9 +247,10 @@ impl ApiClient {
     ) -> Self {
         Self {
             client: reqwest::Client::new(),
-            base_url,
+            base_url: base_url.clone(),
             tokens,
             refresh_callback,
+            auth_client: AuthenticationClient::new_with_base_url(base_url),
         }
     }
 
@@ -173,11 +258,35 @@ impl ApiClient {
     async fn ensure_valid_token(&mut self) -> Result<()> {
         // Check if token will expire within 5 minutes (300 seconds)
         if is_token_expired(&self.tokens.access_token, 300) {
-            // TODO: Implement actual token refresh using refresh token
-            // For now, we'll return an error to indicate re-authentication is needed
-            return Err(anyhow::anyhow!(
-                "Access token expired and token refresh not yet implemented. Please re-authenticate."
-            ));
+            debug!("Access token expired, attempting refresh");
+            
+            // Try to refresh the token if we have a refresh token
+            if let Some(refresh_token) = &self.tokens.refresh_token {
+                match self.auth_client.refresh_token(refresh_token).await {
+                    Ok(new_tokens) => {
+                        debug!("Token refresh successful");
+                        self.tokens = new_tokens;
+                        
+                        // Call the refresh callback if provided
+                        if let Some(callback) = &self.refresh_callback {
+                            callback.on_tokens_refreshed(&self.tokens);
+                        }
+                        
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        debug!("Token refresh failed: {}", e);
+                        return Err(anyhow::anyhow!(
+                            "Access token expired and token refresh failed: {}. Please re-authenticate.",
+                            e
+                        ));
+                    }
+                }
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Access token expired and no refresh token available. Please re-authenticate."
+                ));
+            }
         }
         Ok(())
     }
@@ -376,6 +485,26 @@ mod tests {
     }
 
     #[test]
+    fn test_refresh_request_serialization() {
+        let request = RefreshRequest {
+            refresh_token: "refresh_token_123".to_string(),
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("refresh_token_123"));
+        assert!(json.contains("refreshToken"));
+    }
+
+    #[test]
+    fn test_refresh_response_parsing() {
+        let json = r#"{"accessToken":"new_access_token","refreshToken":"new_refresh_token"}"#;
+
+        let refresh_response: RefreshResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(refresh_response.access_token, "new_access_token");
+        assert_eq!(refresh_response.refresh_token, Some("new_refresh_token".to_string()));
+    }
+
+    #[test]
     fn test_auth_response_with_refresh_token() {
         // Test auth response with refresh token
         let json = r#"{"accessToken":"access123","refreshToken":"refresh456"}"#;
@@ -461,5 +590,25 @@ mod tests {
         let custom_url = "https://test.example.com".to_string();
         let api_client_custom = ApiClient::new_with_base_url(tokens, None, custom_url.clone());
         assert_eq!(api_client_custom.base_url, custom_url);
+    }
+
+    #[test]
+    fn test_username_extraction_from_jwt() {
+        let auth_client = AuthenticationClient::new();
+        
+        // Test with a valid JWT token (our test fixture)
+        let jwt_token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4NTMzMDQ4LCJleHAiOjE3ODAwNjkwNDh9.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA";
+        let username = auth_client.extract_username_from_token(jwt_token);
+        assert_eq!(username, Some("test@example.com".to_string()));
+        
+        // Test with non-JWT token
+        let simple_token = "simple_test_token";
+        let username = auth_client.extract_username_from_token(simple_token);
+        assert_eq!(username, None);
+        
+        // Test with invalid JWT
+        let invalid_jwt = "eyJhbGciOiJIUzUxMiJ9.invalid.token";
+        let username = auth_client.extract_username_from_token(invalid_jwt);
+        assert_eq!(username, None);
     }
 }

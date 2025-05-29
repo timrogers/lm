@@ -434,3 +434,107 @@ async fn test_jwt_token_expiration_function() {
     let empty_token = "";
     assert!(!lm::is_token_expired(empty_token, 0)); // Empty is considered a test token
 }
+
+#[tokio::test]
+async fn test_authentication_client_token_refresh_with_mock_server() {
+    // Start a mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock the token refresh endpoint
+    Mock::given(method("POST"))
+        .and(path("/auth/refresh"))
+        .and(header("content-type", "application/json"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_refresh_success.json")),
+        )
+        .mount(&mock_server)
+        .await;
+
+    // Create authentication client with mock server URL
+    let auth_client = AuthenticationClient::new_with_base_url(mock_server.uri());
+
+    // Test token refresh
+    let result = auth_client.refresh_token("refresh_token_123").await;
+    assert!(result.is_ok());
+    
+    let tokens = result.unwrap();
+    assert!(!tokens.access_token.is_empty());
+    assert_eq!(tokens.refresh_token, Some("new_refresh_token_789".to_string()));
+    assert_eq!(tokens.username, "test@example.com"); // Extracted from JWT
+}
+
+#[tokio::test]
+async fn test_api_client_automatic_token_refresh_with_mock_server() {
+    // Start a mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock the token refresh endpoint
+    Mock::given(method("POST"))
+        .and(path("/auth/refresh"))
+        .and(header("content-type", "application/json"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_refresh_success.json")),
+        )
+        .mount(&mock_server)
+        .await;
+
+    // Mock the machines endpoint for the NEW token
+    Mock::given(method("GET"))
+        .and(path("/things"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/machines_response.json")),
+        )
+        .mount(&mock_server)
+        .await;
+
+    // Create tokens with an expired access token (JWT that starts with "ey" but invalid will be considered expired)
+    let tokens = AuthTokens {
+        access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
+        refresh_token: Some("refresh_token_123".to_string()),
+        username: "test@example.com".to_string(),
+    };
+
+    // Create callback to verify refresh was called
+    let callback = Arc::new(TestTokenCallback::new());
+
+    // Create API client
+    let mut api_client = ApiClient::new_with_base_url(tokens, Some(callback.clone()), mock_server.uri());
+
+    // This should trigger token refresh and then succeed
+    let result = api_client.get_machines().await;
+    assert!(result.is_ok());
+    
+    // Verify callback was called
+    let refreshed = callback.refreshed.lock().unwrap();
+    assert!(*refreshed, "Token refresh callback should have been called");
+}
+
+#[tokio::test]
+async fn test_api_client_token_refresh_failure_with_mock_server() {
+    // Start a mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock the token refresh endpoint to return failure
+    Mock::given(method("POST"))
+        .and(path("/auth/refresh"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("Refresh token expired"))
+        .mount(&mock_server)
+        .await;
+
+    // Create tokens with an expired access token
+    let tokens = AuthTokens {
+        access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
+        refresh_token: Some("expired_refresh_token".to_string()),
+        username: "test@example.com".to_string(),
+    };
+
+    // Create API client
+    let mut api_client = ApiClient::new_with_base_url(tokens, None, mock_server.uri());
+
+    // This should fail with refresh error
+    let result = api_client.get_machines().await;
+    assert!(result.is_err());
+    
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("token refresh failed"), "Error should mention token refresh failure: {}", error_msg);
+}
