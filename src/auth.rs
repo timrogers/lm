@@ -163,8 +163,8 @@ impl AuthenticationClient {
         };
 
         let response = self
-            .client
-            .post(format!("{}/auth/refresh", self.base_url))
+             .client
+            .post(format!("{}/auth/refreshtoken", self.base_url))
             .json(&refresh_request)
             .send()
             .await?;
