@@ -102,6 +102,8 @@ impl MachineStatus {
                     if let Some(status) = &output.status {
                         if status == "Ready" {
                             return "On (Ready)".to_string();
+                        } else if status == "NoWater" {
+                            return "On (No water)".to_string();
                         } else if let Some(ready_time) = output.ready_start_time {
                             let now = current_time_ms.unwrap_or_else(|| {
                                 SystemTime::now()
@@ -327,6 +329,34 @@ mod tests {
         };
         assert!(!status.is_on());
         assert_eq!(status.get_status_string(), "Unknown");
+    }
+
+    #[test]
+    fn test_machine_status_no_water() {
+        // Test NoWater status
+        let status_no_water = MachineStatus {
+            widgets: vec![
+                Widget {
+                    code: "CMMachineStatus".to_string(),
+                    output: Some(WidgetOutput {
+                        status: Some("PoweredOn".to_string()),
+                        mode: None,
+                        ready_start_time: None,
+                    }),
+                },
+                Widget {
+                    code: "CMCoffeeBoiler".to_string(),
+                    output: Some(WidgetOutput {
+                        status: Some("NoWater".to_string()),
+                        mode: None,
+                        ready_start_time: None, // null when no water
+                    }),
+                },
+            ],
+        };
+
+        assert!(status_no_water.is_on());
+        assert_eq!(status_no_water.get_status_string(), "On (No water)");
     }
 
     #[test]
