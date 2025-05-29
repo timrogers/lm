@@ -1,0 +1,36 @@
+[
+    {
+        "availableFirmwareUpdate": false,
+        "bleAuthToken": "7ceea5b5cb32395698c1236c9e26e29ffa87c833e782700567d6f00fd948b0ab",
+        "coffeeStation": null,
+        "connected": true,
+        "connectionDate": 1748484013637,
+        "gatewayHw": "Esp32",
+        "imageUrl": "https://lion.lamarzocco.io/img/thing-model/list/lineamicra/lineamicra-1-c-acciaio.png",
+        "location": "HOME_OR_DWELLING_SPACE",
+        "modelCode": "LINEAMICRA",
+        "modelName": "LINEA MICRA",
+        "name": "Linea Micra",
+        "offlineMode": false,
+        "requireFirmwareUpdate": false,
+        "serialNumber": "MR033274",
+        "type": "CoffeeMachine"
+    },
+    {
+        "availableFirmwareUpdate": false,
+        "bleAuthToken": "another-token-here",
+        "coffeeStation": null,
+        "connected": false,
+        "connectionDate": null,
+        "gatewayHw": "Esp32",
+        "imageUrl": "https://lion.lamarzocco.io/img/thing-model/list/gs3av/gs3av-1-c-acciaio.png",
+        "location": "OFFICE",
+        "modelCode": "GS3AV",
+        "modelName": "GS3 AV",
+        "name": "Office Machine",
+        "offlineMode": true,
+        "requireFirmwareUpdate": false,
+        "serialNumber": "GS001234",
+        "type": "CoffeeMachine"
+    }
+]

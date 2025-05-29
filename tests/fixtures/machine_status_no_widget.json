@@ -1,0 +1,20 @@
+{
+    "serialNumber": "MR033274",
+    "type": "CoffeeMachine",
+    "name": "Linea Micra",
+    "location": "HOME_OR_DWELLING_SPACE",
+    "modelCode": "LINEAMICRA",
+    "modelName": "LINEA MICRA",
+    "connected": true,
+    "widgets": [
+        {
+            "code": "SomeOtherWidget",
+            "index": 1,
+            "output": {
+                "status": "SomeStatus",
+                "mode": "SomeMode"
+            },
+            "tutorialUrl": null
+        }
+    ]
+}

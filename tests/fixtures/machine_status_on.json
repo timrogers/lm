@@ -1,0 +1,50 @@
+{
+    "serialNumber": "MR033274",
+    "type": "CoffeeMachine",
+    "name": "Linea Micra",
+    "location": "HOME_OR_DWELLING_SPACE",
+    "modelCode": "LINEAMICRA",
+    "modelName": "LINEA MICRA",
+    "connected": true,
+    "widgets": [
+        {
+            "code": "CMMachineStatus",
+            "index": 1,
+            "output": {
+                "availableModes": [
+                    "BrewingMode",
+                    "StandBy"
+                ],
+                "brewingStartTime": 1748513000000,
+                "lastCoffee": {
+                    "doseIndex": "Continuous",
+                    "doseMode": "Continuous",
+                    "doseValue": null,
+                    "doseValueNumerator": null,
+                    "extractionSeconds": 25.5,
+                    "time": 1748512800000
+                },
+                "lastFlush": null,
+                "mode": "BrewingMode",
+                "nextStatus": null,
+                "status": "PoweredOn"
+            },
+            "tutorialUrl": null
+        },
+        {
+            "code": "CMCoffeeBoiler",
+            "index": 1,
+            "output": {
+                "enabled": true,
+                "enabledSupported": false,
+                "readyStartTime": 1748513000000,
+                "status": "Ready",
+                "targetTemperature": 94.0,
+                "targetTemperatureMax": 100,
+                "targetTemperatureMin": 80,
+                "targetTemperatureStep": 0.1
+            },
+            "tutorialUrl": null
+        }
+    ]
+}
