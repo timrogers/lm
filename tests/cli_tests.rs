@@ -17,7 +17,7 @@ async fn test_cli_machines_command_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Username is required"));
+    assert!(stderr.contains("Not logged in"));
 }
 
 #[tokio::test]
@@ -31,6 +31,8 @@ async fn test_cli_help_command() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("A CLI for controlling La Marzocco espresso machines"));
+    assert!(stdout.contains("login"));
+    assert!(stdout.contains("logout"));
     assert!(stdout.contains("machines"));
     assert!(stdout.contains("on"));
     assert!(stdout.contains("off"));
@@ -74,7 +76,7 @@ async fn test_cli_on_command_with_wait_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Username is required"));
+    assert!(stderr.contains("Not logged in"));
 }
 
 #[tokio::test]
