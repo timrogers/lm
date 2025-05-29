@@ -5,12 +5,10 @@ use log::{debug, info, warn};
 use notify_rust::Notification;
 use std::time::Duration;
 use tabled::{Table, Tabled};
+use std::sync::Arc;
 
-mod auth;
-mod client;
-mod types;
-
-use client::LaMarzoccoClient;
+// Use the new library interface
+use lm::{AuthenticationClient, ApiClient, TokenRefreshCallback, AuthTokens};
 
 #[derive(Parser)]
 #[command(name = "lm")]
@@ -62,6 +60,16 @@ struct MachineRow {
     status: String,
 }
 
+/// Simple token refresh callback for CLI usage
+struct CliTokenCallback;
+
+impl TokenRefreshCallback for CliTokenCallback {
+    fn on_tokens_refreshed(&self, tokens: &AuthTokens) {
+        debug!("Tokens refreshed for user: {}", tokens.username);
+        // In a real application, you might save tokens to secure storage here
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -81,17 +89,20 @@ async fn main() -> Result<()> {
         )
     })?;
 
-    // Create client and authenticate
-    let mut client = LaMarzoccoClient::new();
-
+    // Authenticate using the new authentication client
+    let auth_client = AuthenticationClient::new();
     info!("Authenticating with La Marzocco...");
-    client.authenticate(&username, &password).await?;
+    let tokens = auth_client.login(&username, &password).await?;
     debug!("Authentication successful");
+
+    // Create API client with token refresh callback
+    let callback = Arc::new(CliTokenCallback);
+    let mut api_client = ApiClient::new(tokens, Some(callback));
 
     match cli.command {
         Commands::Machines => {
             info!("Fetching machine list...");
-            let machines = client.get_machines().await?;
+            let machines = api_client.get_machines().await?;
 
             if machines.is_empty() {
                 println!("No machines found for this account.");
@@ -101,7 +112,15 @@ async fn main() -> Result<()> {
             let mut rows: Vec<MachineRow> = Vec::new();
 
             for machine in &machines {
-                let status = machine.get_status_display(&client).await;
+                // For status display, use the new API client directly
+                let status = if machine.connected {
+                    match api_client.get_machine_status(&machine.serial_number).await {
+                        Ok(status) => status.get_status_string(),
+                        Err(_) => "Unknown".to_string(),
+                    }
+                } else {
+                    "Unavailable".to_string()
+                };
 
                 rows.push(MachineRow {
                     model: machine
@@ -124,7 +143,7 @@ async fn main() -> Result<()> {
             let machine_serial = match serial {
                 Some(s) => s,
                 None => {
-                    let machines = client.get_machines().await?;
+                    let machines = api_client.get_machines().await?;
                     if machines.is_empty() {
                         return Err(anyhow::anyhow!("No machines found for this account."));
                     }
@@ -138,10 +157,10 @@ async fn main() -> Result<()> {
             };
 
             info!("Turning on machine {}", machine_serial);
-            client.turn_on_machine(&machine_serial).await?;
+            api_client.turn_on_machine(&machine_serial).await?;
 
             if wait {
-                wait_for_machine_ready(&client, &machine_serial).await?;
+                wait_for_machine_ready(&mut api_client, &machine_serial).await?;
             } else {
                 println!("Machine {} turned on successfully.", machine_serial);
             }
@@ -150,7 +169,7 @@ async fn main() -> Result<()> {
             let machine_serial = match serial {
                 Some(s) => s,
                 None => {
-                    let machines = client.get_machines().await?;
+                    let machines = api_client.get_machines().await?;
                     if machines.is_empty() {
                         return Err(anyhow::anyhow!("No machines found for this account."));
                     }
@@ -164,7 +183,7 @@ async fn main() -> Result<()> {
             };
 
             info!("Turning off machine {}", machine_serial);
-            client.turn_off_machine(&machine_serial).await?;
+            api_client.turn_off_machine(&machine_serial).await?;
             println!("Machine {} turned off (standby mode).", machine_serial);
         }
     }
@@ -181,7 +200,7 @@ async fn main() -> Result<()> {
 /// - Shows an animated spinner with status updates
 /// - Returns when machine shows "On (Ready)" status
 /// - Treats "Standby" as normal startup state (not an error)
-async fn wait_for_machine_ready(client: &LaMarzoccoClient, machine_serial: &str) -> Result<()> {
+async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str) -> Result<()> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
@@ -198,7 +217,7 @@ async fn wait_for_machine_ready(client: &LaMarzoccoClient, machine_serial: &str)
     tokio::time::sleep(delay).await;
 
     loop {
-        match client.get_machine_status(machine_serial).await {
+        match api_client.get_machine_status(machine_serial).await {
             Ok(status) => {
                 let status_string = status.get_status_string();
 

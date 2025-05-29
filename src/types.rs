@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Authentication tokens returned from login
+#[derive(Debug, Clone)]
+pub struct AuthTokens {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub username: String,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Machine {
     #[serde(rename = "serialNumber")]

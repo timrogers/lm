@@ -1,0 +1,34 @@
+{
+    "serialNumber": "GS01234",
+    "type": "CoffeeMachine",
+    "name": "Test Machine",
+    "location": "HOME_OR_DWELLING_SPACE",
+    "modelCode": "GS3AV",
+    "modelName": "GS3 AV",
+    "connected": true,
+    "widgets": [
+        {
+            "code": "CMMachineStatus",
+            "index": 1,
+            "output": {
+                "availableModes": [
+                    "BrewingMode",
+                    "StandBy"
+                ],
+                "brewingStartTime": 1748513000000,
+                "mode": "BrewingMode",
+                "status": "PoweredOn"
+            }
+        },
+        {
+            "code": "CMCoffeeBoiler",
+            "index": 1,
+            "output": {
+                "enabled": true,
+                "readyStartTime": 1748513000000,
+                "status": "Ready",
+                "targetTemperature": 94.0
+            }
+        }
+    ]
+}

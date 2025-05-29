@@ -19,6 +19,8 @@ log = "0.4"
 tabled = "0.15"
 indicatif = "0.17"
 notify-rust = "4.10"
+jsonwebtoken = "9.2"
+chrono = "0.4"
 
 [dev-dependencies]
 mockito = "1.2"

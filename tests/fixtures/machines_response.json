@@ -1,0 +1,19 @@
+[
+    {
+        "availableFirmwareUpdate": false,
+        "bleAuthToken": "test-token-here",
+        "coffeeStation": null,
+        "connected": true,
+        "connectionDate": 1748484013637,
+        "gatewayHw": "Esp32",
+        "imageUrl": "https://lion.lamarzocco.io/img/thing-model/list/gs3av/gs3av-1-c-acciaio.png",
+        "location": "HOME_OR_DWELLING_SPACE",
+        "modelCode": "GS3AV",
+        "modelName": "GS3 AV",
+        "name": "Test Machine",
+        "offlineMode": false,
+        "requireFirmwareUpdate": false,
+        "serialNumber": "GS01234",
+        "type": "CoffeeMachine"
+    }
+]
