@@ -11,6 +11,17 @@ use tabled::{Table, Tabled};
 // Use the new library interface
 use lm::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
 
+/// Check if an error indicates authentication failure and clear config if so
+fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
+    let error_msg = e.to_string();
+    if error_msg.contains("Please re-authenticate") || error_msg.contains("Authentication failed. Please run 'lm login' again.") {
+        warn!("Stored credentials are invalid, clearing config file");
+        let _ = config::clear_config();
+        return anyhow::anyhow!("Stored credentials are invalid. Please run 'lm login' again.");
+    }
+    e
+}
+
 #[derive(Parser)]
 #[command(name = "lm")]
 #[command(about = "A CLI for controlling La Marzocco espresso machines")]
@@ -188,17 +199,7 @@ async fn main() -> Result<()> {
                     
                     let machines = match api_client.get_machines().await {
                         Ok(machines) => machines,
-                        Err(e) => {
-                            // Check if this is an authentication error
-                            if e.to_string().contains("Please re-authenticate") {
-                                warn!("Stored credentials are invalid, clearing config file");
-                                let _ = config::clear_config();
-                                return Err(anyhow::anyhow!(
-                                    "Stored credentials are invalid. Please run 'lm login' again."
-                                ));
-                            }
-                            return Err(e);
-                        }
+                        Err(e) => return Err(handle_auth_error(e)),
                     };
 
                     if machines.is_empty() {
@@ -242,16 +243,7 @@ async fn main() -> Result<()> {
                         None => {
                             let machines = match api_client.get_machines().await {
                                 Ok(machines) => machines,
-                                Err(e) => {
-                                    if e.to_string().contains("Please re-authenticate") {
-                                        warn!("Stored credentials are invalid, clearing config file");
-                                        let _ = config::clear_config();
-                                        return Err(anyhow::anyhow!(
-                                            "Stored credentials are invalid. Please run 'lm login' again."
-                                        ));
-                                    }
-                                    return Err(e);
-                                }
+                                Err(e) => return Err(handle_auth_error(e)),
                             };
                             
                             if machines.is_empty() {
@@ -269,16 +261,7 @@ async fn main() -> Result<()> {
                     info!("Turning on machine {}", machine_serial);
                     match api_client.turn_on_machine(&machine_serial).await {
                         Ok(_) => {},
-                        Err(e) => {
-                            if e.to_string().contains("Please re-authenticate") {
-                                warn!("Stored credentials are invalid, clearing config file");
-                                let _ = config::clear_config();
-                                return Err(anyhow::anyhow!(
-                                    "Stored credentials are invalid. Please run 'lm login' again."
-                                ));
-                            }
-                            return Err(e);
-                        }
+                        Err(e) => return Err(handle_auth_error(e)),
                     }
 
                     if wait {
@@ -293,16 +276,7 @@ async fn main() -> Result<()> {
                         None => {
                             let machines = match api_client.get_machines().await {
                                 Ok(machines) => machines,
-                                Err(e) => {
-                                    if e.to_string().contains("Please re-authenticate") {
-                                        warn!("Stored credentials are invalid, clearing config file");
-                                        let _ = config::clear_config();
-                                        return Err(anyhow::anyhow!(
-                                            "Stored credentials are invalid. Please run 'lm login' again."
-                                        ));
-                                    }
-                                    return Err(e);
-                                }
+                                Err(e) => return Err(handle_auth_error(e)),
                             };
                             
                             if machines.is_empty() {
@@ -320,16 +294,7 @@ async fn main() -> Result<()> {
                     info!("Turning off machine {}", machine_serial);
                     match api_client.turn_off_machine(&machine_serial).await {
                         Ok(_) => {},
-                        Err(e) => {
-                            if e.to_string().contains("Please re-authenticate") {
-                                warn!("Stored credentials are invalid, clearing config file");
-                                let _ = config::clear_config();
-                                return Err(anyhow::anyhow!(
-                                    "Stored credentials are invalid. Please run 'lm login' again."
-                                ));
-                            }
-                            return Err(e);
-                        }
+                        Err(e) => return Err(handle_auth_error(e)),
                     }
                     
                     println!("Machine {} turned off (standby mode).", machine_serial);

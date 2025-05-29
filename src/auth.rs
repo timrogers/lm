@@ -152,7 +152,24 @@ impl AuthenticationClient {
             }
         } else {
             debug!("Authentication failed with status: {}", status);
-            Err(anyhow::anyhow!("Authentication failed: {}", response_text))
+            debug!("Error response: {}", response_text);
+            
+            // Try to parse the error response for a better message
+            if let Ok(error_response) = serde_json::from_str::<ErrorResponse>(&response_text) {
+                if status.as_u16() == 401 {
+                    return Err(anyhow::anyhow!("Invalid username or password. Please check your credentials and try again."));
+                }
+                // For other errors, provide a more readable message
+                let message = error_response.message.unwrap_or_else(|| error_response.error);
+                return Err(anyhow::anyhow!("Authentication failed: {}", message));
+            }
+            
+            // Fallback for unparseable responses
+            if status.as_u16() == 401 {
+                return Err(anyhow::anyhow!("Invalid username or password. Please check your credentials and try again."));
+            }
+            
+            Err(anyhow::anyhow!("Authentication failed with status {}: {}", status, response_text))
         }
     }
 
@@ -349,6 +366,12 @@ impl ApiClient {
         } else {
             let error_text = response.text().await?;
             debug!("Failed to fetch machines: {}", error_text);
+            
+            // Check if this is an authentication error
+            if status.as_u16() == 401 {
+                return Err(anyhow::anyhow!("Authentication failed. Please run 'lm login' again."));
+            }
+            
             Err(anyhow::anyhow!("Failed to fetch machines: {}", error_text))
         }
     }
@@ -381,6 +404,12 @@ impl ApiClient {
         } else {
             let error_text = response.text().await?;
             debug!("Failed to fetch machine status: {}", error_text);
+            
+            // Check if this is an authentication error
+            if status.as_u16() == 401 {
+                return Err(anyhow::anyhow!("Authentication failed. Please run 'lm login' again."));
+            }
+            
             Err(anyhow::anyhow!(
                 "Failed to fetch machine status: {}",
                 error_text
@@ -426,8 +455,15 @@ impl ApiClient {
             debug!("Command sent successfully to machine: {}", serial_number);
             Ok(())
         } else {
+            let status = response.status();
             let error_text = response.text().await?;
             debug!("Failed to send command to machine: {}", error_text);
+            
+            // Check if this is an authentication error
+            if status.as_u16() == 401 {
+                return Err(anyhow::anyhow!("Authentication failed. Please run 'lm login' again."));
+            }
+            
             Err(anyhow::anyhow!(
                 "Failed to send command to machine: {}",
                 error_text
