@@ -59,10 +59,14 @@ pub fn is_token_expired(token: &str, buffer_seconds: u64) -> bool {
         return false;
     }
 
+    // For JWT tokens, we need to disable signature validation to just read the claims
+    let mut validation = Validation::new(Algorithm::HS512);
+    validation.insecure_disable_signature_validation();
+
     match decode::<Claims>(
         token,
-        &DecodingKey::from_secret(&[]), // We don't validate signature for expiration check
-        &Validation::new(Algorithm::HS512),
+        &DecodingKey::from_secret(&[]), // Secret not used when signature validation is disabled
+        &validation,
     ) {
         Ok(token_data) => {
             let now = Utc::now().timestamp() as u64;
@@ -362,12 +366,12 @@ mod tests {
     #[test]
     fn test_auth_response_parsing() {
         // Test successful auth response
-        let json = r#"{"accessToken":"eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MTM0MDIsImV4cCI6MTc0ODUxNzAwMn0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA"}"#;
+        let json = r#"{"accessToken":"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MzMwNDgsImV4cCI6MTc4MDA2OTA0OH0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA"}"#;
 
         let auth_response: LoginResponse = serde_json::from_str(json).unwrap();
         assert_eq!(
             auth_response.access_token,
-            "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MTM0MDIsImV4cCI6MTc0ODUxNzAwMn0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA"
+            "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MzMwNDgsImV4cCI6MTc4MDA2OTA0OH0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA"
         );
     }
 
@@ -412,6 +416,11 @@ mod tests {
         // Test with non-JWT test token (should not be expired)
         let test_token = "simple_test_token";
         assert!(!is_token_expired(test_token, 0));
+
+        // Test with the actual token from our fixture (should not be expired since it's valid for a year)
+        let fixture_token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MzMwNDgsImV4cCI6MTc4MDA2OTA0OH0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA";
+        assert!(!is_token_expired(fixture_token, 0), "Fixture token should not be expired");
+        assert!(!is_token_expired(fixture_token, 300), "Fixture token should not be expired even with 5-minute buffer");
     }
 
     #[test]

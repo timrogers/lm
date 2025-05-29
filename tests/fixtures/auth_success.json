@@ -1,5 +1,5 @@
 {
-    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MTM0MDIsImV4cCI6MTc0ODUxNzAwMn0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA",
+    "accessToken": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtZUB0aW1yb2dlcnMuY28udWsiLCJpYXQiOjE3NDg1MzMwNDgsImV4cCI6MTc4MDA2OTA0OH0.fQJam2zsJopWMKtti0gOJ_1uUfyFop5tixsnlMWu-qhQeg0vb6BG8nTdRRx2Hw_ORxGLPrN4xyJatzpKPJ5YDA",
     "email": "test@example.com",
     "id": "237e40e2-8101-4599-8880-a64ced51ca69",
     "refreshToken": "19a186df-affe-424c-ac10-03a6aeca935d",
