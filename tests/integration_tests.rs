@@ -449,7 +449,7 @@ async fn test_authentication_client_token_refresh_with_mock_server() {
 
     // Mock the token refresh endpoint
     Mock::given(method("POST"))
-        .and(path("/auth/refresh"))
+        .and(path("/auth/refreshtoken"))
         .and(header("content-type", "application/json"))
         .respond_with(
             ResponseTemplate::new(200)
@@ -478,7 +478,7 @@ async fn test_api_client_automatic_token_refresh_with_mock_server() {
 
     // Mock the token refresh endpoint
     Mock::given(method("POST"))
-        .and(path("/auth/refresh"))
+        .and(path("/auth/refreshtoken"))
         .and(header("content-type", "application/json"))
         .respond_with(
             ResponseTemplate::new(200)
@@ -527,7 +527,7 @@ async fn test_api_client_token_refresh_failure_with_mock_server() {
 
     // Mock the token refresh endpoint to return failure
     Mock::given(method("POST"))
-        .and(path("/auth/refresh"))
+        .and(path("/auth/refreshtoken"))
         .respond_with(ResponseTemplate::new(401).set_body_string("Refresh token expired"))
         .mount(&mock_server)
         .await;

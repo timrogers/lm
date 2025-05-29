@@ -3,12 +3,26 @@ use clap::{Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info, warn};
 use notify_rust::Notification;
+use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tabled::{Table, Tabled};
 
 // Use the new library interface
-use lm::{ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
+use lm::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
+
+/// Check if an error indicates authentication failure and clear config if so
+fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
+    let error_msg = e.to_string();
+    if error_msg.contains("Please re-authenticate")
+        || error_msg.contains("Authentication failed. Please run 'lm login' again.")
+    {
+        warn!("Stored credentials are invalid, clearing config file");
+        let _ = config::clear_config();
+        return anyhow::anyhow!("Stored credentials are invalid. Please run 'lm login' again.");
+    }
+    e
+}
 
 #[derive(Parser)]
 #[command(name = "lm")]
@@ -29,6 +43,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Login and store credentials for future use
+    Login {
+        /// Username for La Marzocco account (optional, will prompt if not provided)
+        #[arg(long)]
+        username: Option<String>,
+        /// Password for La Marzocco account (optional, will prompt if not provided)
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Logout and clear stored credentials
+    Logout,
     /// Turn on the espresso machine
     On {
         /// Serial number of the machine (optional if only one machine)
@@ -60,13 +85,45 @@ struct MachineRow {
     status: String,
 }
 
-/// Simple token refresh callback for CLI usage
+/// Token refresh callback that saves tokens to ~/.lm.yml
 struct CliTokenCallback;
 
 impl TokenRefreshCallback for CliTokenCallback {
     fn on_tokens_refreshed(&self, credentials: &Credentials) {
         debug!("Tokens refreshed for user: {}", credentials.username);
-        // In a real application, you might save tokens to secure storage here
+
+        // Save the refreshed tokens to the config file
+        let config = config::Config::from(credentials);
+        if let Err(e) = config::save_config(&config) {
+            warn!("Failed to save refreshed tokens to config file: {}", e);
+        } else {
+            debug!("Refreshed tokens saved to config file");
+        }
+    }
+}
+
+/// Prompt for username if not provided
+fn prompt_username(username: Option<String>) -> Result<String> {
+    match username {
+        Some(u) => Ok(u),
+        None => {
+            print!("Username: ");
+            io::stdout().flush()?;
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+            Ok(input.trim().to_string())
+        }
+    }
+}
+
+/// Securely prompt for password if not provided
+fn prompt_password(password: Option<String>) -> Result<String> {
+    match password {
+        Some(p) => Ok(p),
+        None => {
+            let password = rpassword::prompt_password("Password: ")?;
+            Ok(password)
+        }
     }
 }
 
@@ -76,115 +133,176 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Validate credentials
-    let username = cli.username.ok_or_else(|| {
-        anyhow::anyhow!(
-            "Username is required. Provide via --username or LM_USERNAME environment variable."
-        )
-    })?;
-
-    let password = cli.password.ok_or_else(|| {
-        anyhow::anyhow!(
-            "Password is required. Provide via --password or LM_PASSWORD environment variable."
-        )
-    })?;
-
-    // Authenticate using the new authentication client
-    let auth_client = AuthenticationClient::new();
-    info!("Authenticating with La Marzocco...");
-    let tokens = auth_client.login(&username, &password).await?;
-    debug!("Authentication successful");
-
-    // Create API client with token refresh callback
-    let callback = Arc::new(CliTokenCallback);
-    let mut api_client = ApiClient::new(tokens, Some(callback));
-
     match cli.command {
-        Commands::Machines => {
-            info!("Fetching machine list...");
-            let machines = api_client.get_machines().await?;
+        Commands::Login { username, password } => {
+            // Handle login command
+            let username = prompt_username(username)?;
+            let password = prompt_password(password)?;
 
-            if machines.is_empty() {
-                println!("No machines found for this account.");
-                return Ok(());
-            }
+            // Authenticate using the new authentication client
+            let auth_client = AuthenticationClient::new();
+            info!("Authenticating with La Marzocco...");
+            let tokens = auth_client.login(&username, &password).await?;
+            debug!("Authentication successful");
 
-            let mut rows: Vec<MachineRow> = Vec::new();
+            // Save tokens to config file
+            let config = config::Config::from(&tokens);
+            config::save_config(&config)?;
 
-            for machine in &machines {
-                // For status display, use the new API client directly
-                let status = if machine.connected {
-                    match api_client.get_machine_status(&machine.serial_number).await {
-                        Ok(status) => status.get_status_string(),
-                        Err(_) => "Unknown".to_string(),
-                    }
-                } else {
-                    "Unavailable".to_string()
-                };
-
-                rows.push(MachineRow {
-                    model: machine
-                        .model
-                        .clone()
-                        .unwrap_or_else(|| "Unknown".to_string()),
-                    name: machine
-                        .name
-                        .clone()
-                        .unwrap_or_else(|| "Unnamed".to_string()),
-                    serial: machine.serial_number.clone(),
-                    status,
-                });
-            }
-
-            let table = Table::new(&rows);
-            println!("{}", table);
+            println!("Successfully logged in as {}", username);
+            println!("Credentials saved to ~/.lm.yml");
+            return Ok(());
         }
-        Commands::On { serial, wait } => {
-            let machine_serial = match serial {
-                Some(s) => s,
-                None => {
-                    let machines = api_client.get_machines().await?;
-                    if machines.is_empty() {
-                        return Err(anyhow::anyhow!("No machines found for this account."));
-                    }
-                    if machines.len() > 1 {
-                        return Err(anyhow::anyhow!(
-                            "Multiple machines found. Please specify --serial."
-                        ));
-                    }
-                    machines[0].serial_number.clone()
+        Commands::Logout => {
+            // Handle logout command
+            config::clear_config()?;
+            println!("Logged out successfully. Credentials cleared.");
+            return Ok(());
+        }
+        _ => {
+            // For other commands, we need authentication
+            // Try to load stored credentials first
+            let credentials = match config::load_config() {
+                Ok(config) => {
+                    debug!("Using stored credentials for user: {}", config.username);
+                    Credentials::from(config)
+                }
+                Err(_) => {
+                    // Fall back to CLI arguments or environment variables
+                    let username = cli.username.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Not logged in. Please run 'lm login' or provide --username and --password."
+                        )
+                    })?;
+
+                    let password = cli.password.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Not logged in. Please run 'lm login' or provide --username and --password."
+                        )
+                    })?;
+
+                    // Authenticate using the new authentication client
+                    let auth_client = AuthenticationClient::new();
+                    info!("Authenticating with La Marzocco...");
+                    let tokens = auth_client.login(&username, &password).await?;
+                    debug!("Authentication successful");
+                    tokens
                 }
             };
 
-            info!("Turning on machine {}", machine_serial);
-            api_client.turn_on_machine(&machine_serial).await?;
+            // Create API client with token refresh callback
+            let callback = Arc::new(CliTokenCallback);
+            let mut api_client = ApiClient::new(credentials, Some(callback));
 
-            if wait {
-                wait_for_machine_ready(&mut api_client, &machine_serial).await?;
-            } else {
-                println!("Machine {} turned on successfully.", machine_serial);
-            }
-        }
-        Commands::Off { serial } => {
-            let machine_serial = match serial {
-                Some(s) => s,
-                None => {
-                    let machines = api_client.get_machines().await?;
+            // Handle the API commands
+            match cli.command {
+                Commands::Machines => {
+                    info!("Fetching machine list...");
+
+                    let machines = match api_client.get_machines().await {
+                        Ok(machines) => machines,
+                        Err(e) => return Err(handle_auth_error(e)),
+                    };
+
                     if machines.is_empty() {
-                        return Err(anyhow::anyhow!("No machines found for this account."));
+                        println!("No machines found for this account.");
+                        return Ok(());
                     }
-                    if machines.len() > 1 {
-                        return Err(anyhow::anyhow!(
-                            "Multiple machines found. Please specify --serial."
-                        ));
-                    }
-                    machines[0].serial_number.clone()
-                }
-            };
 
-            info!("Turning off machine {}", machine_serial);
-            api_client.turn_off_machine(&machine_serial).await?;
-            println!("Machine {} turned off (standby mode).", machine_serial);
+                    let mut rows: Vec<MachineRow> = Vec::new();
+
+                    for machine in &machines {
+                        // For status display, use the new API client directly
+                        let status = if machine.connected {
+                            match api_client.get_machine_status(&machine.serial_number).await {
+                                Ok(status) => status.get_status_string(),
+                                Err(_) => "Unknown".to_string(),
+                            }
+                        } else {
+                            "Unavailable".to_string()
+                        };
+
+                        rows.push(MachineRow {
+                            model: machine
+                                .model
+                                .clone()
+                                .unwrap_or_else(|| "Unknown".to_string()),
+                            name: machine
+                                .name
+                                .clone()
+                                .unwrap_or_else(|| "Unnamed".to_string()),
+                            serial: machine.serial_number.clone(),
+                            status,
+                        });
+                    }
+
+                    let table = Table::new(&rows);
+                    println!("{}", table);
+                }
+                Commands::On { serial, wait } => {
+                    let machine_serial = match serial {
+                        Some(s) => s,
+                        None => {
+                            let machines = match api_client.get_machines().await {
+                                Ok(machines) => machines,
+                                Err(e) => return Err(handle_auth_error(e)),
+                            };
+
+                            if machines.is_empty() {
+                                return Err(anyhow::anyhow!("No machines found for this account."));
+                            }
+                            if machines.len() > 1 {
+                                return Err(anyhow::anyhow!(
+                                    "Multiple machines found. Please specify --serial."
+                                ));
+                            }
+                            machines[0].serial_number.clone()
+                        }
+                    };
+
+                    info!("Turning on machine {}", machine_serial);
+                    match api_client.turn_on_machine(&machine_serial).await {
+                        Ok(_) => {}
+                        Err(e) => return Err(handle_auth_error(e)),
+                    }
+
+                    if wait {
+                        wait_for_machine_ready(&mut api_client, &machine_serial).await?;
+                    } else {
+                        println!("Machine {} turned on successfully.", machine_serial);
+                    }
+                }
+                Commands::Off { serial } => {
+                    let machine_serial = match serial {
+                        Some(s) => s,
+                        None => {
+                            let machines = match api_client.get_machines().await {
+                                Ok(machines) => machines,
+                                Err(e) => return Err(handle_auth_error(e)),
+                            };
+
+                            if machines.is_empty() {
+                                return Err(anyhow::anyhow!("No machines found for this account."));
+                            }
+                            if machines.len() > 1 {
+                                return Err(anyhow::anyhow!(
+                                    "Multiple machines found. Please specify --serial."
+                                ));
+                            }
+                            machines[0].serial_number.clone()
+                        }
+                    };
+
+                    info!("Turning off machine {}", machine_serial);
+                    match api_client.turn_off_machine(&machine_serial).await {
+                        Ok(_) => {}
+                        Err(e) => return Err(handle_auth_error(e)),
+                    }
+
+                    println!("Machine {} turned off (standby mode).", machine_serial);
+                }
+                _ => unreachable!(),
+            }
         }
     }
 

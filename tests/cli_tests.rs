@@ -17,7 +17,7 @@ async fn test_cli_machines_command_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Username is required"));
+    assert!(stderr.contains("Not logged in"));
 }
 
 #[tokio::test]
@@ -31,6 +31,8 @@ async fn test_cli_help_command() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("A CLI for controlling La Marzocco espresso machines"));
+    assert!(stdout.contains("login"));
+    assert!(stdout.contains("logout"));
     assert!(stdout.contains("machines"));
     assert!(stdout.contains("on"));
     assert!(stdout.contains("off"));
@@ -74,7 +76,7 @@ async fn test_cli_on_command_with_wait_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Username is required"));
+    assert!(stderr.contains("Not logged in"));
 }
 
 #[tokio::test]
@@ -89,6 +91,35 @@ async fn test_cli_on_command_help_includes_wait() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("--wait"));
     assert!(stdout.contains("Wait for the machine to be ready before returning"));
+}
+
+#[tokio::test]
+async fn test_cli_login_command_help() {
+    // Test that the login command help works and shows correct options
+    let output = Command::new(CLI_BINARY)
+        .args(["login", "--help"])
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Login and store credentials for future use"));
+    assert!(stdout.contains("--username"));
+    assert!(stdout.contains("--password"));
+    assert!(stdout.contains("optional, will prompt if not provided"));
+}
+
+#[tokio::test]
+async fn test_cli_logout_command() {
+    // Test that the logout command works (doesn't matter if no credentials are stored)
+    let output = Command::new(CLI_BINARY)
+        .arg("logout")
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Logged out successfully"));
 }
 
 // Note: We could add more comprehensive CLI tests that actually hit mocked endpoints,
