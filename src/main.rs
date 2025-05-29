@@ -331,6 +331,7 @@ async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str
 
     let mut delay = Duration::from_secs(2); // Start with 2 second delay
     let max_delay = Duration::from_secs(30); // Maximum 30 second delay
+    let mut no_water_notification_sent = false; // Track if we've sent the no water notification
 
     tokio::time::sleep(delay).await;
 
@@ -354,6 +355,22 @@ async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str
                     }
 
                     return Ok(());
+                } else if status_string == "On (No water)" {
+                    spinner.set_message("Machine has no water - please refill reservoir");
+
+                    // Send notification only once per run
+                    if !no_water_notification_sent {
+                        if let Err(e) = Notification::new()
+                            .summary("La Marzocco Machine - No Water")
+                            .body("Please refill the water reservoir and try again.")
+                            .icon("coffee")
+                            .timeout(5000) // 5 seconds
+                            .show()
+                        {
+                            warn!("Failed to send notification: {}", e);
+                        }
+                        no_water_notification_sent = true;
+                    }
                 } else if status_string.starts_with("On (Ready in") {
                     spinner.set_message(format!("Machine heating up - {}", status_string));
                 } else if status_string == "On (Ready in < 1 min)" {
