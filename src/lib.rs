@@ -12,7 +12,7 @@
 //! ## Library Usage
 //!
 //! ```rust,no_run
-//! use lm::{AuthenticationClient, ApiClient, TokenRefreshCallback, AuthTokens};
+//! use lm::{AuthenticationClient, ApiClient, TokenRefreshCallback, Credentials};
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,9 +23,9 @@
 //! // Create API client with token refresh callback
 //! struct MyTokenStorage;
 //! impl TokenRefreshCallback for MyTokenStorage {
-//!     fn on_tokens_refreshed(&self, tokens: &AuthTokens) {
+//!     fn on_tokens_refreshed(&self, credentials: &Credentials) {
 //!         // Save refreshed tokens to your storage
-//!         println!("Tokens refreshed for user: {}", tokens.username);
+//!         println!("Tokens refreshed for user: {}", credentials.username);
 //!     }
 //! }
 //!
@@ -50,8 +50,8 @@ pub mod client;
 pub mod types;
 
 // Export new library interface
-pub use auth::{AuthenticationClient, ApiClient, TokenRefreshCallback, is_token_expired};
-pub use types::AuthTokens;
+pub use auth::{is_token_expired, ApiClient, AuthenticationClient, TokenRefreshCallback};
+pub use types::Credentials;
 
 // Export legacy interface for backward compatibility
 pub use client::LaMarzoccoClient;

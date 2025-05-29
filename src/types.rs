@@ -3,9 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Authentication tokens returned from login
 #[derive(Debug, Clone)]
-pub struct AuthTokens {
+pub struct Credentials {
     pub access_token: String,
-    pub refresh_token: Option<String>,
+    pub refresh_token: String,
     pub username: String,
 }
 

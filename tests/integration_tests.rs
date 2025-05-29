@@ -1,7 +1,7 @@
-use lm::{LaMarzoccoClient, AuthenticationClient, ApiClient, TokenRefreshCallback, AuthTokens};
+use lm::{ApiClient, AuthenticationClient, Credentials, LaMarzoccoClient, TokenRefreshCallback};
+use std::sync::Arc;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-use std::sync::Arc;
 
 #[tokio::test]
 async fn test_full_authentication_flow_with_mock_server() {
@@ -279,10 +279,13 @@ impl TestTokenCallback {
 }
 
 impl TokenRefreshCallback for TestTokenCallback {
-    fn on_tokens_refreshed(&self, tokens: &AuthTokens) {
+    fn on_tokens_refreshed(&self, credentials: &Credentials) {
         let mut refreshed = self.refreshed.lock().unwrap();
         *refreshed = true;
-        println!("Test callback: tokens refreshed for {}", tokens.username);
+        println!(
+            "Test callback: tokens refreshed for {}",
+            credentials.username
+        );
     }
 }
 
@@ -296,7 +299,8 @@ async fn test_new_authentication_client_with_mock_server() {
         .and(path("/auth/signin"))
         .and(header("content-type", "application/json"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_success_with_refresh.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/auth_success_with_refresh.json")),
         )
         .mount(&mock_server)
         .await;
@@ -307,11 +311,11 @@ async fn test_new_authentication_client_with_mock_server() {
     // Test authentication
     let result = auth_client.login("test@example.com", "password123").await;
     assert!(result.is_ok());
-    
+
     let tokens = result.unwrap();
     assert_eq!(tokens.username, "test@example.com");
     assert!(!tokens.access_token.is_empty());
-    assert!(tokens.refresh_token.is_some());
+    assert!(!tokens.refresh_token.is_empty());
 }
 
 #[tokio::test]
@@ -324,15 +328,16 @@ async fn test_new_api_client_with_machines_with_mock_server() {
         .and(path("/things"))
         .and(header("authorization", "Bearer simple_test_token"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/machines_response.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/machines_response.json")),
         )
         .mount(&mock_server)
         .await;
 
     // Create tokens - use a simple token for testing
-    let tokens = AuthTokens {
+    let tokens = Credentials {
         access_token: "simple_test_token".to_string(),
-        refresh_token: Some("test_refresh_token".to_string()),
+        refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
     };
 
@@ -340,12 +345,13 @@ async fn test_new_api_client_with_machines_with_mock_server() {
     let callback = Arc::new(TestTokenCallback::new());
 
     // Create API client
-    let mut api_client = ApiClient::new_with_base_url(tokens, Some(callback.clone()), mock_server.uri());
+    let mut api_client =
+        ApiClient::new_with_base_url(tokens, Some(callback.clone()), mock_server.uri());
 
     // Test getting machines
     let result = api_client.get_machines().await;
     assert!(result.is_ok());
-    
+
     let machines = result.unwrap();
     assert!(!machines.is_empty());
     assert_eq!(machines[0].serial_number, "GS01234");
@@ -361,7 +367,8 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
         .and(path("/things/GS01234/dashboard"))
         .and(header("authorization", "Bearer simple_test_token"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/machine_status_ready.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/machine_status_ready.json")),
         )
         .mount(&mock_server)
         .await;
@@ -374,10 +381,10 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
         .mount(&mock_server)
         .await;
 
-    // Create tokens - use simple token for testing  
-    let tokens = AuthTokens {
+    // Create tokens - use simple token for testing
+    let tokens = Credentials {
         access_token: "simple_test_token".to_string(),
-        refresh_token: Some("test_refresh_token".to_string()),
+        refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
     };
 
@@ -387,7 +394,7 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
     // Test getting machine status
     let status_result = api_client.get_machine_status("GS01234").await;
     assert!(status_result.is_ok());
-    
+
     let status = status_result.unwrap();
     assert!(status.is_on());
 
@@ -395,7 +402,7 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
     let turn_on_result = api_client.turn_on_machine("GS01234").await;
     assert!(turn_on_result.is_ok());
 
-    // Test turning off machine  
+    // Test turning off machine
     let turn_off_result = api_client.turn_off_machine("GS01234").await;
     assert!(turn_off_result.is_ok());
 }
@@ -403,9 +410,9 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
 #[tokio::test]
 async fn test_token_refresh_callback() {
     // Create tokens
-    let tokens = AuthTokens {
+    let credentials = Credentials {
         access_token: "test_access_token".to_string(),
-        refresh_token: Some("test_refresh_token".to_string()),
+        refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
     };
 
@@ -413,7 +420,7 @@ async fn test_token_refresh_callback() {
     let callback = Arc::new(TestTokenCallback::new());
 
     // Manually trigger callback (simulating a token refresh)
-    callback.on_tokens_refreshed(&tokens);
+    callback.on_tokens_refreshed(&credentials);
 
     // Check that callback was called
     let refreshed = callback.refreshed.lock().unwrap();
@@ -445,7 +452,8 @@ async fn test_authentication_client_token_refresh_with_mock_server() {
         .and(path("/auth/refresh"))
         .and(header("content-type", "application/json"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_refresh_success.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/auth_refresh_success.json")),
         )
         .mount(&mock_server)
         .await;
@@ -456,10 +464,10 @@ async fn test_authentication_client_token_refresh_with_mock_server() {
     // Test token refresh
     let result = auth_client.refresh_token("refresh_token_123").await;
     assert!(result.is_ok());
-    
+
     let tokens = result.unwrap();
     assert!(!tokens.access_token.is_empty());
-    assert_eq!(tokens.refresh_token, Some("new_refresh_token_789".to_string()));
+    assert_eq!(tokens.refresh_token, "new_refresh_token_789".to_string());
     assert_eq!(tokens.username, "test@example.com"); // Extracted from JWT
 }
 
@@ -473,7 +481,8 @@ async fn test_api_client_automatic_token_refresh_with_mock_server() {
         .and(path("/auth/refresh"))
         .and(header("content-type", "application/json"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_refresh_success.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/auth_refresh_success.json")),
         )
         .mount(&mock_server)
         .await;
@@ -482,15 +491,16 @@ async fn test_api_client_automatic_token_refresh_with_mock_server() {
     Mock::given(method("GET"))
         .and(path("/things"))
         .respond_with(
-            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/machines_response.json")),
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("fixtures/machines_response.json")),
         )
         .mount(&mock_server)
         .await;
 
     // Create tokens with an expired access token (JWT that starts with "ey" but invalid will be considered expired)
-    let tokens = AuthTokens {
+    let tokens = Credentials {
         access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
-        refresh_token: Some("refresh_token_123".to_string()),
+        refresh_token: "refresh_token_123".to_string(),
         username: "test@example.com".to_string(),
     };
 
@@ -498,12 +508,13 @@ async fn test_api_client_automatic_token_refresh_with_mock_server() {
     let callback = Arc::new(TestTokenCallback::new());
 
     // Create API client
-    let mut api_client = ApiClient::new_with_base_url(tokens, Some(callback.clone()), mock_server.uri());
+    let mut api_client =
+        ApiClient::new_with_base_url(tokens, Some(callback.clone()), mock_server.uri());
 
     // This should trigger token refresh and then succeed
     let result = api_client.get_machines().await;
     assert!(result.is_ok());
-    
+
     // Verify callback was called
     let refreshed = callback.refreshed.lock().unwrap();
     assert!(*refreshed, "Token refresh callback should have been called");
@@ -522,9 +533,9 @@ async fn test_api_client_token_refresh_failure_with_mock_server() {
         .await;
 
     // Create tokens with an expired access token
-    let tokens = AuthTokens {
+    let tokens = Credentials {
         access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
-        refresh_token: Some("expired_refresh_token".to_string()),
+        refresh_token: "expired_refresh_token".to_string(),
         username: "test@example.com".to_string(),
     };
 
@@ -534,7 +545,11 @@ async fn test_api_client_token_refresh_failure_with_mock_server() {
     // This should fail with refresh error
     let result = api_client.get_machines().await;
     assert!(result.is_err());
-    
+
     let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("token refresh failed"), "Error should mention token refresh failure: {}", error_msg);
+    assert!(
+        error_msg.contains("token refresh failed"),
+        "Error should mention token refresh failure: {}",
+        error_msg
+    );
 }

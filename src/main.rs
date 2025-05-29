@@ -3,12 +3,12 @@ use clap::{Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info, warn};
 use notify_rust::Notification;
+use std::sync::Arc;
 use std::time::Duration;
 use tabled::{Table, Tabled};
-use std::sync::Arc;
 
 // Use the new library interface
-use lm::{AuthenticationClient, ApiClient, TokenRefreshCallback, AuthTokens};
+use lm::{ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
 
 #[derive(Parser)]
 #[command(name = "lm")]
@@ -64,8 +64,8 @@ struct MachineRow {
 struct CliTokenCallback;
 
 impl TokenRefreshCallback for CliTokenCallback {
-    fn on_tokens_refreshed(&self, tokens: &AuthTokens) {
-        debug!("Tokens refreshed for user: {}", tokens.username);
+    fn on_tokens_refreshed(&self, credentials: &Credentials) {
+        debug!("Tokens refreshed for user: {}", credentials.username);
         // In a real application, you might save tokens to secure storage here
     }
 }
