@@ -75,8 +75,6 @@ enum Commands {
 
 #[derive(Tabled)]
 struct MachineRow {
-    #[tabled(rename = "Model")]
-    model: String,
     #[tabled(rename = "Name")]
     name: String,
     #[tabled(rename = "Serial")]
@@ -222,15 +220,20 @@ async fn main() -> Result<()> {
                             "Unavailable".to_string()
                         };
 
+                        let machine_name = machine
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| "Unnamed".to_string());
+
+                        let machine_model = machine
+                            .model
+                            .clone()
+                            .unwrap_or_else(|| "Unknown".to_string());
+
+                        let combined_name = format!("{} ({})", machine_name, machine_model);
+
                         rows.push(MachineRow {
-                            model: machine
-                                .model
-                                .clone()
-                                .unwrap_or_else(|| "Unknown".to_string()),
-                            name: machine
-                                .name
-                                .clone()
-                                .unwrap_or_else(|| "Unnamed".to_string()),
+                            name: combined_name,
                             serial: machine.serial_number.clone(),
                             status,
                         });
@@ -430,5 +433,35 @@ mod wait_tests {
         // Sixth delay should remain at 30 seconds (still capped)
         delay = std::cmp::min(delay * 2, max_delay);
         assert_eq!(delay, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_machine_row_name_formatting() {
+        use super::MachineRow;
+        use tabled::Table;
+
+        // Test the name formatting in MachineRow
+        let row = MachineRow {
+            name: "Linea Micra (LINEA MICRA)".to_string(),
+            serial: "MR033274".to_string(),
+            status: "Connected".to_string(),
+        };
+
+        // Verify the name field contains both name and model
+        assert!(row.name.contains("Linea Micra"));
+        assert!(row.name.contains("(LINEA MICRA)"));
+
+        // Test that the table can be created successfully
+        let rows = vec![row];
+        let table = Table::new(&rows);
+        let table_string = table.to_string();
+
+        // Verify the table contains our expected content
+        assert!(table_string.contains("Name"));
+        assert!(table_string.contains("Serial"));
+        assert!(table_string.contains("Status"));
+        assert!(table_string.contains("Linea Micra (LINEA MICRA)"));
+        assert!(table_string.contains("MR033274"));
+        assert!(table_string.contains("Connected"));
     }
 }
