@@ -93,6 +93,35 @@ async fn test_cli_on_command_help_includes_wait() {
     assert!(stdout.contains("Wait for the machine to be ready before returning"));
 }
 
+#[tokio::test]
+async fn test_cli_login_command_help() {
+    // Test that the login command help works and shows correct options
+    let output = Command::new(CLI_BINARY)
+        .args(["login", "--help"])
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Login and store credentials for future use"));
+    assert!(stdout.contains("--username"));
+    assert!(stdout.contains("--password"));
+    assert!(stdout.contains("optional, will prompt if not provided"));
+}
+
+#[tokio::test]
+async fn test_cli_logout_command() {
+    // Test that the logout command works (doesn't matter if no credentials are stored)
+    let output = Command::new(CLI_BINARY)
+        .arg("logout")
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Logged out successfully"));
+}
+
 // Note: We could add more comprehensive CLI tests that actually hit mocked endpoints,
 // but that would require modifying the CLI to accept a custom base URL parameter,
 // which might not be worth the complexity for this project.
