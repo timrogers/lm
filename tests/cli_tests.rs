@@ -17,7 +17,7 @@ async fn test_cli_machines_command_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Not logged in"));
+    assert!(stderr.contains("You don't seem to be logged in."));
 }
 
 #[tokio::test]
@@ -76,7 +76,7 @@ async fn test_cli_on_command_with_wait_no_credentials() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Not logged in"));
+    assert!(stderr.contains("You don't seem to be logged in."));
 }
 
 #[tokio::test]
@@ -90,7 +90,7 @@ async fn test_cli_on_command_help_includes_wait() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("--wait"));
-    assert!(stdout.contains("Wait for the machine to be ready before returning"));
+    assert!(stdout.contains("Wait for the machine to be ready to brew before exiting, and trigger a notification when ready"));
 }
 
 #[tokio::test]
@@ -103,10 +103,11 @@ async fn test_cli_login_command_help() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Login and store credentials for future use"));
+    assert!(
+        stdout.contains("Log in to your La Marzocco account and store credentials for future use")
+    );
     assert!(stdout.contains("--username"));
     assert!(stdout.contains("--password"));
-    assert!(stdout.contains("optional, will prompt if not provided"));
 }
 
 #[tokio::test]
