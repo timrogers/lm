@@ -21,7 +21,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary_name: lm
             binary_suffix: '.exe'
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             binary_name: lm
             binary_suffix: ''
