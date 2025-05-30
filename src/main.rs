@@ -28,17 +28,18 @@ fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
 #[command(name = "lm")]
 #[command(about = "A CLI for controlling La Marzocco espresso machines")]
 #[command(version)]
+#[command(propagate_version = true, arg_required_else_help = true)]
 struct Cli {
-    /// Username for La Marzocco account
-    #[arg(long, env = "LM_USERNAME")]
+    /// The username for your La Marzocco account. You can provide this for every command as an argument or environment variable, or you can log in once with `lm login` to store it for future use.
+    #[arg(long, short = 'u', env = "LM_USERNAME", global = true)]
     username: Option<String>,
 
-    /// Password for La Marzocco account
-    #[arg(long, env = "LM_PASSWORD")]
+    /// The password for your La Marzocco account. You can provide this for every command as an argument or environment variable, or you can log in once with `lm login` to store it for future use.
+    #[arg(long, short = 'p', env = "LM_PASSWORD", global = true)]
     password: Option<String>,
 
     /// Enable verbose logging
-    #[arg(long)]
+    #[arg(long, short = 'v', global = true, default_value_t = false)]
     verbose: bool,
 
     #[command(subcommand)]
@@ -47,30 +48,30 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Login and store credentials for future use
+    /// Log in to your La Marzocco account and store credentials for future use
     Login {
-        /// Username for La Marzocco account (optional, will prompt if not provided)
-        #[arg(long)]
+        /// The username for your La Marzocco account. If not provided, you will be prompted to enter it.
+        #[arg(long, short = 'u')]
         username: Option<String>,
-        /// Password for La Marzocco account (optional, will prompt if not provided)
-        #[arg(long)]
+        /// The password for your La Marzocco account. If not provided, you will be prompted to enter it securely. Your password will not be stored, but an access token will be obtained and saved for future use.
+        #[arg(long, short = 'p')]
         password: Option<String>,
     },
-    /// Logout and clear stored credentials
+    /// Log out of your La Marzocco account and clear stored credentials
     Logout,
     /// Turn on the espresso machine
     On {
-        /// Serial number of the machine (optional if only one machine)
-        #[arg(long)]
+        /// The serial number of the machine (optional if only one machine is connected to your account)
+        #[arg(long, short = 's')]
         serial: Option<String>,
-        /// Wait for the machine to be ready before returning
-        #[arg(long)]
+        /// Wait for the machine to be ready to brew before exiting, and trigger a notification when ready
+        #[arg(long, short = 'w', default_value_t = false)]
         wait: bool,
     },
-    /// Turn off the espresso machine (standby mode)
+    /// Switch the espresso machine to standby mode
     Off {
-        /// Serial number of the machine (optional if only one machine)
-        #[arg(long)]
+        /// The serial number of the machine (optional if only one machine is connected to your account)
+        #[arg(long, short = 's')]
         serial: Option<String>,
     },
     /// List all machines connected to the account
@@ -158,14 +159,13 @@ async fn main() -> Result<()> {
             let config = config::Config::from(&tokens);
             config::save_config(&config)?;
 
-            println!("Successfully logged in as {}", username);
-            println!("Credentials saved to ~/.lm.yml");
+            println!("✅ Authentication successful! Credentials saved to ~/.lm.yml.");
             return Ok(());
         }
         Commands::Logout => {
             // Handle logout command
             config::clear_config()?;
-            println!("Logged out successfully. Credentials cleared.");
+            println!("✅ Logged out successfully. Credentials cleared.");
             return Ok(());
         }
         _ => {
@@ -180,13 +180,13 @@ async fn main() -> Result<()> {
                     // Fall back to CLI arguments or environment variables
                     let username = cli.username.ok_or_else(|| {
                         anyhow::anyhow!(
-                            "Not logged in. Please run 'lm login' or provide --username and --password."
+                            "You don't seem to be logged in. Please run 'lm login' or provide --username and --password."
                         )
                     })?;
 
                     let password = cli.password.ok_or_else(|| {
                         anyhow::anyhow!(
-                            "Not logged in. Please run 'lm login' or provide --username and --password."
+                            "You don't seem to be logged in. Please run 'lm login' or provide --username and --password."
                         )
                     })?;
 
@@ -214,7 +214,7 @@ async fn main() -> Result<()> {
                     };
 
                     if machines.is_empty() {
-                        println!("No machines found for this account.");
+                        println!("⚠️ No machines connected to your La Marzocco account.");
                         return Ok(());
                     }
 
@@ -263,11 +263,13 @@ async fn main() -> Result<()> {
                             };
 
                             if machines.is_empty() {
-                                return Err(anyhow::anyhow!("No machines found for this account."));
+                                return Err(anyhow::anyhow!(
+                                    "⚠️ No machines found connected to your La Marzocco account."
+                                ));
                             }
                             if machines.len() > 1 {
                                 return Err(anyhow::anyhow!(
-                                    "Multiple machines found. Please specify --serial."
+                                    "⚠️ Multiple machines found connected to your La Marzocco account. Please specify a machine with --serial."
                                 ));
                             }
                             machines[0].serial_number.clone()
@@ -283,7 +285,7 @@ async fn main() -> Result<()> {
                     if wait {
                         wait_for_machine_ready(&mut api_client, &machine_serial).await?;
                     } else {
-                        println!("Machine {} turned on successfully.", machine_serial);
+                        println!("✅ Machine {} turned on successfully.", machine_serial);
                     }
                 }
                 Commands::Off { serial } => {
@@ -296,11 +298,13 @@ async fn main() -> Result<()> {
                             };
 
                             if machines.is_empty() {
-                                return Err(anyhow::anyhow!("No machines found for this account."));
+                                return Err(anyhow::anyhow!(
+                                    "⚠️ No machines found connected to your La Marzocco account."
+                                ));
                             }
                             if machines.len() > 1 {
                                 return Err(anyhow::anyhow!(
-                                    "Multiple machines found. Please specify --serial."
+                                    "⚠️ Multiple machines found connected to your La Marzocco account. Please specify a machine with --serial."
                                 ));
                             }
                             machines[0].serial_number.clone()
@@ -313,7 +317,7 @@ async fn main() -> Result<()> {
                         Err(e) => return Err(handle_auth_error(e)),
                     }
 
-                    println!("Machine {} turned off (standby mode).", machine_serial);
+                    println!("✅ Machine {} switched to standby mode.", machine_serial);
                 }
                 _ => unreachable!(),
             }
@@ -341,7 +345,7 @@ async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str
             .unwrap(),
     );
     spinner.enable_steady_tick(Duration::from_millis(100));
-    spinner.set_message("Waiting for machine to be ready...");
+    spinner.set_message("Waiting for your machine to be ready...");
 
     let mut delay = Duration::from_secs(2); // Start with 2 second delay
     let max_delay = Duration::from_secs(30); // Maximum 30 second delay
@@ -355,13 +359,12 @@ async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str
                 let status_string = status.get_status_string();
 
                 if status_string == "On (Ready)" {
-                    spinner.finish_with_message("Machine is ready! ☕");
+                    spinner.finish_with_message("✅ Machine is ready! ☕");
 
                     // Send desktop notification
                     if let Err(e) = Notification::new()
-                        .summary("La Marzocco Machine Ready")
+                        .summary("La Marzocco machine ready")
                         .body("Your espresso machine is ready to brew! ☕")
-                        .icon("coffee")
                         .timeout(5000) // 5 seconds
                         .show()
                     {
@@ -370,14 +373,13 @@ async fn wait_for_machine_ready(api_client: &mut ApiClient, machine_serial: &str
 
                     return Ok(());
                 } else if status_string == "On (No water)" {
-                    spinner.set_message("Machine has no water - please refill reservoir");
+                    spinner.set_message("⚠️ Machine has no water - please refill reservoir. ");
 
                     // Send notification only once per run
                     if !no_water_notification_sent {
                         if let Err(e) = Notification::new()
-                            .summary("La Marzocco Machine - No Water")
-                            .body("Please refill the water reservoir and try again.")
-                            .icon("coffee")
+                            .summary("La Marzocco machine needs water")
+                            .body("Please refill the water reservoir and wait for the boiler to be ready.")
                             .timeout(5000) // 5 seconds
                             .show()
                         {
