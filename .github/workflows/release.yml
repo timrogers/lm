@@ -48,7 +48,7 @@ jobs:
         components: rustc, cargo
         toolchain: nightly
         override: true
-        target: ${{ matrix.job.target }}
+        target: ${{ matrix.target }}
 
     - name: Run cargo build 
       uses: actions-rs/cargo@v1
