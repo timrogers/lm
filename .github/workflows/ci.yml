@@ -33,7 +33,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        components: rustc, cargo
+        components: rustc, cargo, clippy, rustfmt
         toolchain: nightly
         override: true
         target: ${{ matrix.job.target }}
