@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -32,10 +33,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Debug environment (macOS only)
+      if: runner.os == 'macOS'
+      run: |
+        echo "PATH: $PATH"
+        echo "Home: $HOME"
+        which cargo || echo "cargo not found"
+        which rustc || echo "rustc not found"
+        ls -la ~/.cargo/bin/ || echo "~/.cargo/bin/ not found"
+      
     - name: Set up Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
+        
+    - name: Verify Rust installation
+      run: |
+        rustc --version
+        cargo --version
+        
+    - name: Add cargo to PATH (macOS)
+      if: runner.os == 'macOS'
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         
     - name: Cache dependencies
       uses: actions/cache@v4
