@@ -37,6 +37,10 @@ struct Cli {
     #[arg(long, env = "LM_PASSWORD")]
     password: Option<String>,
 
+    /// Enable verbose logging
+    #[arg(long)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -129,9 +133,16 @@ fn prompt_password(password: Option<String>) -> Result<String> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
-
     let cli = Cli::parse();
+
+    // Initialize logger based on verbose flag
+    if cli.verbose {
+        env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
+    } else {
+        env_logger::init();
+    }
 
     match cli.command {
         Commands::Login { username, password } => {

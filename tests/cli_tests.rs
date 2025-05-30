@@ -122,6 +122,33 @@ async fn test_cli_logout_command() {
     assert!(stdout.contains("Logged out successfully"));
 }
 
+#[tokio::test]
+async fn test_cli_verbose_flag_in_help() {
+    // Test that the --verbose flag appears in the help output
+    let output = Command::new(CLI_BINARY)
+        .arg("--help")
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--verbose"));
+    assert!(stdout.contains("Enable verbose logging"));
+}
+
+#[tokio::test]
+async fn test_cli_verbose_flag_functionality() {
+    // Test that the --verbose flag works and doesn't break basic functionality
+    let output = Command::new(CLI_BINARY)
+        .args(["--verbose", "logout"])
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Logged out successfully"));
+}
+
 // Note: We could add more comprehensive CLI tests that actually hit mocked endpoints,
 // but that would require modifying the CLI to accept a custom base URL parameter,
 // which might not be worth the complexity for this project.
