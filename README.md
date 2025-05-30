@@ -1,15 +1,14 @@
-# LM - La Marzocco CLI
+# lm
 
-A command-line interface for controlling La Marzocco espresso machines remotely through their cloud service.
+A command-line interface (CLI) for controlling La Marzocco espresso machines
 
 ## Features
 
-- **Persistent login**: Login once and store credentials securely in `~/.lm.yml`
-- **List machines**: View all machines connected to your account with model, name, location, and status
-- **Turn on machines**: Remotely turn on your espresso machine  
-- **Turn off machines**: Put your machine into standby mode
-- **Automatic token refresh**: Access tokens are automatically refreshed as needed
-- **Environment variable support**: Alternative credential storage using environment variables
+- **🔑 Persistent login**: Log in once and store credentials securely in `~/.lm.yml`
+- **📜 List machines**: View all machines connected to your account with model, name, location, and status
+- **🔋 Turn on machines**: Remotely turn on your espresso machine  
+- **😴 Turn off machines**: Put your machine into standby mode
+- **🔃 Automatic token refresh**: Access tokens are automatically refreshed as needed
 
 ## Installation
 
@@ -113,13 +112,3 @@ lm machines --help
 lm login --help
 lm logout --help
 ```
-
-## API
-
-This CLI uses the La Marzocco customer app API at `https://lion.lamarzocco.io/api/customer-app`.
-
-The implementation is inspired by the [pylamarzocco](https://github.com/zweckj/pylamarzocco) Python library.
-
-## License
-
-MIT License
