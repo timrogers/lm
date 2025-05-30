@@ -108,6 +108,9 @@ jobs:
           artifacts/lm-macos-x86_64
         generate_release_notes: true
 
+    - name: Clean up artifacts/ directory
+      run: rm -rf artifacts
+
     - name: Publish to crates.io
       uses: actions-rs/cargo@v1
       with:
