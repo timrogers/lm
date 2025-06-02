@@ -255,8 +255,8 @@ jobs:
     if: startsWith(github.event.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
-      - name: Use Rust 1.87.0 with target ${{ matrix.job.target }}
-        run: rustup override set 1.87.0-${{ matrix.job.target }}
+      - name: Use Rust 1.87.0 with target x86_64-unknown-linux-gnu
+        run: rustup override set 1.87.0-x86_64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
       - name: Publish to Crates.io
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
