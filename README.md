@@ -1,28 +1,41 @@
 # lm
 
-A command-line interface (CLI) for controlling La Marzocco espresso machines
+💡☕ Control your La Marzocco espresso machine from the command line
+
+---
 
 ## Features
 
-- **🔑 Persistent login**: Log in once and store credentials securely in `~/.lm.yml`
-- **📜 List machines**: View all machines connected to your account with model, name, location, and status
-- **🔋 Turn on machines**: Remotely turn on your espresso machine  
-- **😴 Turn off machines**: Put your machine into standby mode
-- **🔃 Automatic token refresh**: Access tokens are automatically refreshed as needed
+With this tool, you can:
+
+- Turn your machine on
+- Switch your machine back into standby
+- Monitor the status of your machine
 
 ## Installation
 
-Make sure you have Rust installed, then build the project:
+### macOS or Linux via [Homebrew](https://brew.sh/)
 
-```bash
-cargo build --release
-```
+1. Install the latest version by running `brew tap timrogers/tap && brew install lm`.
+1. Run `lm --help` to check that everything is working and see the available commands.
 
-The binary will be available at `target/release/lm`.
+### macOS, Linux or Windows via [Cargo](https://doc.rust-lang.org/cargo/), Rust's package manager
+
+1. Install [Rust](https://www.rust-lang.org/tools/install) on your machine, if it isn't already installed.
+1. Install the `lm` crate by running `cargo install lm`.
+1. Run `lm --help` to check that everything is working and see the available commands.
+
+### macOS, Linux or Windows via direct binary download
+
+1. Download the [latest release](https://github.com/timrogers/lm/releases/latest) for your platform. macOS, Linux and Windows devices are supported.
+2. Add the binary to `$PATH`, so you can execute it from your shell. For the best experience, call it `lm` on macOS and Linux, and `lm.exe` on Windows.
+3. Run `lm --help` to check that everything is working and see the available commands.
 
 ## Usage
 
-### Authentication
+### From the command line
+
+#### Logging in to your La Marzocco account
 
 The recommended way to use the CLI is with the persistent login system:
 
@@ -62,14 +75,14 @@ The recommended way to use the CLI is with the persistent login system:
 
 **Note**: The CLI will automatically refresh access tokens as needed. If stored credentials become invalid, you'll be prompted to run `lm login` again.
 
-### Commands
+#### Viewing the status of your machine(s) 
 
-#### List machines
 ```bash
 lm machines
 ```
 
-Shows all machines connected to your account:
+You'll see all of the machines connected to your account, with their status:
+
 ```
 Model                Name                           Location             Serial               Status    
 ----------------------------------------------------------------------------------------------------
@@ -78,37 +91,31 @@ Linea Mini          Office Espresso                Work                 LM56789 
 GS3 MP              Garage Machine                 Garage               GS98765              Unavailable
 ```
 
-**Status meanings:**
-- **On** - Machine is connected and powered on (brewing mode)
-- **Standby** - Machine is connected but in standby mode
-- **Unavailable** - Machine is not currently connected to the network
+#### Turning on a machine
 
-#### Turn on a machine
 ```bash
-# If you have only one machine
+# Turn your one and only machine on
 lm on
 
-# If you have multiple machines, specify the serial number
+# Turn your machine on, wait until the coffee boiler is ready to go, then exit and trigger a notification
+lm on --wait
+
+# Turn on a specific machine, specified by serial number
 lm on --serial ABC123
 ```
 
-#### Turn off a machine (standby mode)
+#### Turning off a machine (standby mode)
+
 ```bash
-# If you have only one machine
+# Switch your one and only machine into standby
 lm off
 
-# If you have multiple machines, specify the serial number
+# Switch a specific machine into standby mode, specified by serial number
 lm off --serial ABC123
 ```
 
-### Help
+### From a Rust application
 
-Get help for any command:
-```bash
-lm --help
-lm on --help
-lm off --help
-lm machines --help
-lm login --help
-lm logout --help
-```
+The `lm` crate includes functions for interacting with La Marzocco espresso machines from your Rust applications.
+
+To see the full API, check out the documentation on [Docs.rs](https://docs.rs/lm/) or read through [`src/lib.rs`](src/lib.rs).
