@@ -91,6 +91,7 @@ jobs:
       if: matrix.job.runs_on == 'self-hosted'
     - name: Use Rust 1.83.0 with target ${{ matrix.job.target }}
       run: rustup override set 1.83.0-${{ matrix.job.target }}
+    - uses: actions/checkout@v4
     - uses: Swatinem/rust-cache@v2
     - name: Build in release mode
       run: cargo build --release --target=${{ matrix.job.target }}
