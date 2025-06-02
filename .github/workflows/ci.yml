@@ -1,16 +1,12 @@
 name: CI
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+on: push
 
 permissions:
   contents: read
 
 jobs:
-  ci:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -55,3 +51,213 @@ jobs:
       with:
         command: fmt
         args: --all -- --check
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - {
+              target: x86_64-unknown-linux-gnu,
+              binary_name: linux-amd64,
+              runs_on: ubuntu-latest,
+            }
+          - {
+              target: aarch64-unknown-linux-gnu,
+              binary_name: linux-aarch64,
+              runs_on: self-hosted,
+            }
+          - {
+              target: x86_64-apple-darwin,
+              binary_name: darwin-amd64,
+              runs_on: macos-latest,
+            }
+          - {
+              target: aarch64-apple-darwin,
+              binary_name: darwin-aarch64,
+              runs_on: macos-latest,
+            }
+          - {
+              target: x86_64-pc-windows-msvc,
+              binary_name: windows-amd64.exe,
+              runs_on: windows-latest,
+            }
+    runs-on: ${{ matrix.job.runs_on }}
+    steps:
+    - name: Install rustup (self-hosted runners only)
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      if: matrix.job.runs_on == 'self-hosted'
+    - name: Add $HOME/.cargo/bin to PATH (self-hosted runners only)
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      if: matrix.job.runs_on == 'self-hosted'
+    - name: Use Rust 1.87.0 with target ${{ matrix.job.target }}
+      run: rustup override set 1.87.0-${{ matrix.job.target }}
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+    - name: Build in release mode
+      run: cargo build --release --target=${{ matrix.job.target }}
+    - name: Sanitise Git ref for use in filenames
+      id: sanitise_ref
+      run: echo "::set-output name=value::$(echo "${{ github.ref_name }}" | tr '/' '_')"
+    - name: Rename Windows binary to use structured filename
+      run: |
+        cp target/${{ matrix.job.target }}/release/lm.exe lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      if: runner.os == 'Windows'
+    - name: Rename Unix binary to use structured filename
+      run: |
+        rm target/${{ matrix.job.target }}/release/lm.d
+        cp target/${{ matrix.job.target }}/release/lm* lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      if: runner.os != 'Windows'
+    - name: Write Apple signing key to a file (macOS only)
+      env:
+        APPLE_SIGNING_KEY_P12: ${{ secrets.APPLE_SIGNING_KEY_P12 }}
+      run: echo "$APPLE_SIGNING_KEY_P12" | base64 -d -o key.p12
+      if: runner.os == 'macOS'
+    - name: Write App Store Connect API key to a file (macOS only)
+      env:
+        APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      run: echo "$APP_STORE_CONNECT_API_KEY" > app_store_connect_api_key.json
+      if: runner.os == 'macOS'
+    - name: Sign macOS binary (macOS only)
+      uses: indygreg/apple-code-sign-action@v1
+      with:
+        input_path: lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+        p12_file: key.p12
+        p12_password: ${{ secrets.APPLE_SIGNING_KEY_PASSWORD }}
+        sign: true
+        sign_args: "--code-signature-flags=runtime"
+      if: runner.os == 'macOS'
+    - name: Upload binary as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        path: lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+        name: lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+    - name: Archive macOS binary for notarisation (macOS only)
+      run: zip lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}.zip lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      if: runner.os == 'macOS'
+    - name: Notarise signed macOS binary (macOS only)
+      uses: indygreg/apple-code-sign-action@v1
+      with:
+        input_path: lm_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}.zip
+        sign: false
+        notarize: true
+        app_store_connect_api_key_json_file: app_store_connect_api_key.json
+      if: runner.os == 'macOS'
+  create_and_sign_macos_universal_binary:
+    name: Create and sign macOS universal binary (macOS only)
+    runs-on: macos-latest
+    needs: build
+    steps:
+      - name: Sanitise Git ref for use in filenames
+        id: sanitise_ref
+        run: echo "::set-output name=value::$(echo "${{ github.ref_name }}" | tr '/' '_')"
+      - name: Download macOS amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64
+      - name: Download macOS arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
+      - name: Create universal macOS binary
+        run: lipo -create -output lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal lm_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64 lm_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
+      - name: Write Apple signing key to a file (macOS only)
+        env:
+          APPLE_SIGNING_KEY_P12: ${{ secrets.APPLE_SIGNING_KEY_P12 }}
+        run: echo "$APPLE_SIGNING_KEY_P12" | base64 -d -o key.p12
+      - name: Write App Store Connect API key to a file (macOS only)
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: echo "$APP_STORE_CONNECT_API_KEY" > app_store_connect_api_key.json
+      - name: Sign macOS binary (macOS only)
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+          p12_file: key.p12
+          p12_password: ${{ secrets.APPLE_SIGNING_KEY_PASSWORD }}
+          sign: true
+          sign_args: "--code-signature-flags=runtime"
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+      - name: Archive macOS binary for notarisation (macOS only)
+        run: zip lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal.zip lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+      - name: Notarise signed macOS binary (macOS only)
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal.zip
+          sign: false
+          notarize: true
+          app_store_connect_api_key_json_file: app_store_connect_api_key.json
+
+  cargo_publish_dry_run:
+    name: Publish with Cargo in dry-run mode
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Rust 1.87.0
+        run: rustup override set 1.87.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+      - name: Set the version to a dummy version to allow publishing
+        run: cargo set-version 9.9.9
+      - name: Publish to Crates.io
+        run: cargo publish --dry-run --allow-dirty
+
+  create_github_release:
+    name: Create release with binary assets
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - create_and_sign_macos_universal_binary
+    if: startsWith(github.event.ref, 'refs/tags/v')
+    steps:
+      - name: Sanitise Git ref for use in filenames
+        id: sanitise_ref
+        run: echo "::set-output name=value::$(echo "${{ github.ref_name }}" | tr '/' '_')"
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_linux-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_linux-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+      - uses: actions/download-artifact@v4
+        with:
+          name: lm_${{ steps.sanitise_ref.outputs.value }}_windows-amd64.exe
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lm_${{ steps.sanitise_ref.outputs.value }}_windows-amd64.exe
+            lm_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64
+            lm_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
+            lm_${{ steps.sanitise_ref.outputs.value }}_linux-amd64
+            lm_${{ steps.sanitise_ref.outputs.value }}_linux-aarch64
+            lm_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+  cargo_publish:
+    name: Publish with Cargo to Crates.io
+    runs-on: ubuntu-latest
+    needs:
+      - create_github_release
+      - cargo_publish_dry_run
+    if: startsWith(github.event.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Rust 1.87.0 with target ${{ matrix.job.target }}
+        run: rustup override set 1.87.0-${{ matrix.job.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Publish to Crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
