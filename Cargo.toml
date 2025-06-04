@@ -34,5 +34,5 @@ dirs = "6.0"
 
 [dev-dependencies]
 mockito = "1.2"
-wiremock = "0.5"
+wiremock = "0.6"
 tempfile = "3.8"
