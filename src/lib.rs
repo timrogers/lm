@@ -12,7 +12,7 @@
 //! ## Library Usage
 //!
 //! ```rust,no_run
-//! use lm::{AuthenticationClient, ApiClient, TokenRefreshCallback, Credentials};
+//! use lm_rs::{AuthenticationClient, ApiClient, TokenRefreshCallback, Credentials};
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {

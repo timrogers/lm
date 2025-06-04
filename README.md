@@ -22,7 +22,7 @@ With this tool, you can:
 ### macOS, Linux or Windows via [Cargo](https://doc.rust-lang.org/cargo/), Rust's package manager
 
 1. Install [Rust](https://www.rust-lang.org/tools/install) on your machine, if it isn't already installed.
-1. Install the `lm` crate by running `cargo install lm`.
+1. Install the `lm` crate by running `cargo install lm-rs`.
 1. Run `lm --help` to check that everything is working and see the available commands.
 
 ### macOS, Linux or Windows via direct binary download
@@ -116,6 +116,6 @@ lm off --serial ABC123
 
 ### From a Rust application
 
-The `lm` crate includes functions for interacting with La Marzocco espresso machines from your Rust applications.
+The `lm-rs` crate includes functions for interacting with La Marzocco espresso machines from your Rust applications.
 
-To see the full API, check out the documentation on [Docs.rs](https://docs.rs/lm/) or read through [`src/lib.rs`](src/lib.rs).
+To see the full API, check out the documentation on [Docs.rs](https://docs.rs/lm-rs/) or read through [`src/lib.rs`](src/lib.rs).

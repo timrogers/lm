@@ -1,5 +1,5 @@
 [package]
-name = "lm"
+name = "lm-rs"
 version = "0.2.0"
 edition = "2021"
 description = "Control your La Marzocco espresso machine from the command line or a Rust application"
