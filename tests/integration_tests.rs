@@ -1,4 +1,4 @@
-use lm::{ApiClient, AuthenticationClient, Credentials, LaMarzoccoClient, TokenRefreshCallback};
+use lm_rs::{ApiClient, AuthenticationClient, Credentials, LaMarzoccoClient, TokenRefreshCallback};
 use std::sync::Arc;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -230,7 +230,7 @@ async fn test_machine_command_error_with_mock_server() {
 
 #[tokio::test]
 async fn test_json_fixture_parsing() {
-    use lm::types::{Machine, MachineStatus};
+    use lm_rs::types::{Machine, MachineStatus};
     use serde_json;
 
     // Test machines JSON parsing
@@ -431,15 +431,15 @@ async fn test_token_refresh_callback() {
 async fn test_jwt_token_expiration_function() {
     // Test with malformed JWT token (starts with "ey" but invalid)
     let invalid_jwt_token = "eyJhbGciOiJIUzUxMiJ9.invalid.token";
-    assert!(lm::is_token_expired(invalid_jwt_token, 0));
+    assert!(lm_rs::is_token_expired(invalid_jwt_token, 0));
 
     // Test with non-JWT test token (should not be expired for testing)
     let test_token = "simple_test_token";
-    assert!(!lm::is_token_expired(test_token, 0));
+    assert!(!lm_rs::is_token_expired(test_token, 0));
 
     // Test with empty token
     let empty_token = "";
-    assert!(!lm::is_token_expired(empty_token, 0)); // Empty is considered a test token
+    assert!(!lm_rs::is_token_expired(empty_token, 0)); // Empty is considered a test token
 }
 
 #[tokio::test]
