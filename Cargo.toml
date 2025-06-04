@@ -30,7 +30,7 @@ jsonwebtoken = "9.2"
 chrono = "0.4"
 serde_yaml = "0.9"
 rpassword = "7.3"
-dirs = "5.0"
+dirs = "6.0"
 
 [dev-dependencies]
 mockito = "1.2"
