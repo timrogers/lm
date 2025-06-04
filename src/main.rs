@@ -9,7 +9,7 @@ use std::time::Duration;
 use tabled::{Table, Tabled};
 
 // Use the new library interface
-use lm::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
+use lm_rs::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
 
 /// Check if an error indicates authentication failure and clear config if so
 fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
