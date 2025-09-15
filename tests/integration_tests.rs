@@ -1,4 +1,7 @@
-use lm_rs::{ApiClient, AuthenticationClient, Credentials, LaMarzoccoClient, TokenRefreshCallback};
+use lm_rs::{
+    generate_installation_id, generate_installation_key, ApiClient, AuthenticationClient,
+    Credentials, LaMarzoccoClient, TokenRefreshCallback,
+};
 use std::sync::Arc;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -556,5 +559,67 @@ async fn test_api_client_token_refresh_failure_with_mock_server() {
         error_msg.contains("token refresh failed"),
         "Error should mention token refresh failure: {}",
         error_msg
+    );
+}
+
+#[tokio::test]
+async fn test_client_registration_with_mock_server() {
+    // Start a mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock the registration endpoint
+    Mock::given(method("POST"))
+        .and(path("/auth/init"))
+        .and(header("content-type", "application/json"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+        .mount(&mock_server)
+        .await;
+
+    // Create authentication client with mock server URL
+    let auth_client = AuthenticationClient::new_with_base_url(mock_server.uri());
+
+    // Generate installation key
+    let installation_id = generate_installation_id();
+    let installation_key = generate_installation_key(installation_id).unwrap();
+
+    // Test client registration
+    let result = auth_client.register_client(&installation_key).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_authentication_with_installation_key_mock_server() {
+    // Start a mock server
+    let mock_server = MockServer::start().await;
+
+    // Mock the authentication endpoint
+    Mock::given(method("POST"))
+        .and(path("/auth/signin"))
+        .and(header("content-type", "application/json"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/auth_success.json")),
+        )
+        .mount(&mock_server)
+        .await;
+
+    // Create authentication client with mock server URL
+    let auth_client = AuthenticationClient::new_with_base_url(mock_server.uri());
+
+    // Generate installation key
+    let installation_id = generate_installation_id();
+    let installation_key = generate_installation_key(installation_id).unwrap();
+
+    // Test authentication with installation key
+    let result = auth_client
+        .login_with_installation_key("test@example.com", "password123", Some(&installation_key))
+        .await;
+    assert!(result.is_ok());
+
+    let credentials = result.unwrap();
+    assert_eq!(credentials.username, "test@example.com");
+    assert!(credentials.installation_key.is_some());
+    assert_eq!(
+        credentials.installation_key.unwrap().installation_id,
+        installation_key.installation_id
     );
 }

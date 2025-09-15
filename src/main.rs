@@ -9,7 +9,10 @@ use std::time::Duration;
 use tabled::{Table, Tabled};
 
 // Use the new library interface
-use lm_rs::{config, ApiClient, AuthenticationClient, Credentials, TokenRefreshCallback};
+use lm_rs::{
+    config, generate_installation_id, generate_installation_key, ApiClient, AuthenticationClient,
+    Credentials, InstallationKey, TokenRefreshCallback,
+};
 
 /// Check if an error indicates authentication failure and clear config if so
 fn handle_auth_error(e: anyhow::Error) -> anyhow::Error {
@@ -130,6 +133,36 @@ fn prompt_password(password: Option<String>) -> Result<String> {
     }
 }
 
+/// Get or create installation key for new authentication system
+async fn get_or_create_installation_key() -> Result<InstallationKey> {
+    // Try to load existing installation key from config
+    match config::load_config() {
+        Ok(config) => {
+            if let Some(installation_key) = config.installation_key {
+                debug!("Using existing installation key");
+                return Ok(installation_key);
+            }
+        }
+        Err(_) => {
+            debug!("No existing config found");
+        }
+    }
+
+    // Generate new installation key
+    let installation_id = generate_installation_id();
+    let installation_key = generate_installation_key(installation_id)?;
+    
+    debug!("Generated new installation key: {}", installation_key.installation_id);
+    
+    // Register the new client
+    let auth_client = AuthenticationClient::new();
+    auth_client.register_client(&installation_key).await?;
+    
+    info!("Registered new client with La Marzocco");
+    
+    Ok(installation_key)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -149,10 +182,15 @@ async fn main() -> Result<()> {
             let username = prompt_username(username)?;
             let password = prompt_password(password)?;
 
+            // Get or create installation key for new authentication system
+            let installation_key = get_or_create_installation_key().await?;
+
             // Authenticate using the new authentication client
             let auth_client = AuthenticationClient::new();
             info!("Authenticating with La Marzocco...");
-            let tokens = auth_client.login(&username, &password).await?;
+            let tokens = auth_client
+                .login_with_installation_key(&username, &password, Some(&installation_key))
+                .await?;
             debug!("Authentication successful");
 
             // Save tokens to config file
@@ -190,10 +228,15 @@ async fn main() -> Result<()> {
                         )
                     })?;
 
+                    // Get or create installation key for new authentication system
+                    let installation_key = get_or_create_installation_key().await?;
+
                     // Authenticate using the new authentication client
                     let auth_client = AuthenticationClient::new();
                     info!("Authenticating with La Marzocco...");
-                    let tokens = auth_client.login(&username, &password).await?;
+                    let tokens = auth_client
+                        .login_with_installation_key(&username, &password, Some(&installation_key))
+                        .await?;
                     debug!("Authentication successful");
                     tokens
                 }

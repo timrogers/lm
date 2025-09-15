@@ -104,7 +104,7 @@ pub fn generate_request_proof(base_string: &str, secret32: &[u8]) -> Result<Stri
         let rotated = if shift_amount == 0 {
             xor_result
         } else {
-            ((xor_result << shift_amount) | (xor_result >> (8 - shift_amount))) & 0xFF
+            (xor_result << shift_amount) | (xor_result >> (8 - shift_amount))
         };
         work[idx] = rotated;
     }
