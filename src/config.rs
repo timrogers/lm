@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::installation_key::InstallationKey;
 use crate::types::Credentials;
 
 /// Configuration data stored in ~/.lm.yml
@@ -13,6 +14,9 @@ pub struct Config {
     pub username: String,
     pub access_token: String,
     pub refresh_token: String,
+    /// Installation key for new authentication system
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installation_key: Option<InstallationKey>,
 }
 
 impl From<&Credentials> for Config {
@@ -21,6 +25,7 @@ impl From<&Credentials> for Config {
             username: credentials.username.clone(),
             access_token: credentials.access_token.clone(),
             refresh_token: credentials.refresh_token.clone(),
+            installation_key: credentials.installation_key.clone(),
         }
     }
 }
@@ -31,6 +36,7 @@ impl From<Config> for Credentials {
             username: config.username,
             access_token: config.access_token,
             refresh_token: config.refresh_token,
+            installation_key: config.installation_key,
         }
     }
 }
@@ -99,6 +105,7 @@ mod tests {
             username: "test@example.com".to_string(),
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
+            installation_key: None,
         };
 
         let config = Config::from(&credentials);
@@ -118,6 +125,7 @@ mod tests {
             username: "test@example.com".to_string(),
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
+            installation_key: None,
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();

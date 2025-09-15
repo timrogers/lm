@@ -143,6 +143,7 @@ impl AuthenticationClient {
                         access_token: login_response.access_token,
                         refresh_token: login_response.refresh_token,
                         username: username.to_string(),
+                        installation_key: None,
                     })
                 }
                 Err(e) => {
@@ -209,6 +210,7 @@ impl AuthenticationClient {
                         access_token: refresh_response.access_token,
                         refresh_token: refresh_response.refresh_token,
                         username,
+                        installation_key: None,
                     })
                 }
                 Err(e) => {
@@ -621,6 +623,7 @@ mod tests {
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
             username: "test@example.com".to_string(),
+            installation_key: None,
         };
 
         assert_eq!(tokens.access_token, "access123");
@@ -647,6 +650,7 @@ mod tests {
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
             username: "test@example.com".to_string(),
+            installation_key: None,
         };
 
         let api_client = ApiClient::new(tokens.clone(), None);

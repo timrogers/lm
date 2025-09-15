@@ -7,6 +7,8 @@ pub struct Credentials {
     pub access_token: String,
     pub refresh_token: String,
     pub username: String,
+    /// Installation key for new authentication system
+    pub installation_key: Option<crate::installation_key::InstallationKey>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

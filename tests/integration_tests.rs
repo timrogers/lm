@@ -339,6 +339,7 @@ async fn test_new_api_client_with_machines_with_mock_server() {
         access_token: "simple_test_token".to_string(),
         refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
+        installation_key: None,
     };
 
     // Create callback
@@ -386,6 +387,7 @@ async fn test_new_api_client_machine_operations_with_mock_server() {
         access_token: "simple_test_token".to_string(),
         refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
+        installation_key: None,
     };
 
     // Create API client
@@ -414,6 +416,7 @@ async fn test_token_refresh_callback() {
         access_token: "test_access_token".to_string(),
         refresh_token: "test_refresh_token".to_string(),
         username: "test@example.com".to_string(),
+        installation_key: None,
     };
 
     // Create callback
@@ -502,6 +505,7 @@ async fn test_api_client_automatic_token_refresh_with_mock_server() {
         access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
         refresh_token: "refresh_token_123".to_string(),
         username: "test@example.com".to_string(),
+        installation_key: None,
     };
 
     // Create callback to verify refresh was called
@@ -537,6 +541,7 @@ async fn test_api_client_token_refresh_failure_with_mock_server() {
         access_token: "eyJhbGciOiJIUzUxMiJ9.invalid.expired".to_string(), // This will be considered expired
         refresh_token: "expired_refresh_token".to_string(),
         username: "test@example.com".to_string(),
+        installation_key: None,
     };
 
     // Create API client
