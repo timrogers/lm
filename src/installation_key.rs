@@ -3,6 +3,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use p256::{
     ecdsa::{signature::Signer, Signature, SigningKey},
     elliptic_curve::rand_core::OsRng,
+    pkcs8::EncodePublicKey,
     SecretKey,
 };
 use serde::{Deserialize, Serialize};
@@ -33,16 +34,18 @@ impl InstallationKey {
     /// Get the public key in base64-encoded DER format
     pub fn public_key_b64(&self) -> String {
         let verifying_key = *self.private_key.verifying_key();
-        let public_key_bytes = verifying_key.to_encoded_point(false);
-        STANDARD.encode(public_key_bytes.as_bytes())
+        // Use DER encoding to match Python implementation
+        let public_key_der = verifying_key.to_public_key_der().unwrap();
+        STANDARD.encode(public_key_der.as_bytes())
     }
 
     /// Get the base string: installation_id.sha256(public_key_der_bytes)
     pub fn base_string(&self) -> String {
         let verifying_key = *self.private_key.verifying_key();
-        let public_key_bytes = verifying_key.to_encoded_point(false);
+        // Use DER encoding to match Python implementation
+        let public_key_der = verifying_key.to_public_key_der().unwrap();
         let mut hasher = Sha256::new();
-        hasher.update(public_key_bytes.as_bytes());
+        hasher.update(public_key_der.as_bytes());
         let pub_hash = hasher.finalize();
         let pub_hash_b64 = STANDARD.encode(pub_hash);
         format!("{}.{}", self.installation_id, pub_hash_b64)
@@ -56,9 +59,9 @@ pub fn generate_installation_key(installation_id: String) -> Result<Installation
     let signing_key = SigningKey::from(secret_key);
     let verifying_key = *signing_key.verifying_key();
 
-    // Get public key bytes in uncompressed format
-    let public_key_bytes = verifying_key.to_encoded_point(false);
-    let pub_b64 = STANDARD.encode(public_key_bytes.as_bytes());
+    // Get public key bytes in DER format to match Python implementation
+    let public_key_der = verifying_key.to_public_key_der().unwrap();
+    let pub_b64 = STANDARD.encode(public_key_der.as_bytes());
 
     // Create installation hash  
     let mut hasher = Sha256::new();
@@ -266,6 +269,40 @@ mod tests {
             .find(|(k, _)| k == "X-App-Installation-Id")
             .unwrap();
         assert_eq!(installation_id_header.1, installation_id);
+    }
+
+    #[test]
+    fn test_cross_language_compatibility() {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        use p256::{pkcs8::DecodePrivateKey, ecdsa::SigningKey};
+
+        // Test data generated from Python implementation
+        let installation_id = "test-installation-id-12345";
+        let expected_secret = "liWQoHaK8Sg+auapkWedGzGs/8HDt6JCIP3tw2c8WYA=";
+        let private_key_der = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg25BwIri/hrmMdfAvHgbFk9TQ/nmA70OYEdmrFuhbux+hRANCAASSLyaAtUj6jGO/F2VQJMN9XNGQkNMZNktiENHlVgMKaTrTMXuR/dyQU/4boce+LqcHoOBjZVDYz5JsXyKM6qyE";
+        let expected_public_key_der = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEki8mgLVI+oxjvxdlUCTDfVzRkJDTGTZLYhDR5VYDCmk60zF7kf3ckFP+G6HHvi6nB6DgY2VQ2M+SbF8ijOqshA==";
+        let expected_base_string = "test-installation-id-12345.eZhZZDD3ciI13+s7zV9QlgLW9Eo+lDKGJAKUn8SpAtA=";
+
+        // Decode the private key and reconstruct InstallationKey
+        let private_key_bytes = STANDARD.decode(private_key_der).unwrap();
+        let signing_key = SigningKey::from_pkcs8_der(&private_key_bytes).unwrap();
+        let secret_bytes = STANDARD.decode(expected_secret).unwrap();
+        
+        let key = InstallationKey {
+            secret: secret_bytes,
+            private_key: signing_key,
+            installation_id: installation_id.to_string(),
+        };
+
+        // Test that our implementation produces the same results
+        assert_eq!(key.public_key_b64(), expected_public_key_der);
+        assert_eq!(key.base_string(), expected_base_string);
+
+        // Test proof generation with same input as Python
+        let test_proof_input = "test-installation-id-12345.test-nonce.1234567890";
+        let expected_proof = "DXFZPKXiSDRih9U43F+YhJGn2DRt05XLLY9W9dtGl6g=";
+        let proof = generate_request_proof(test_proof_input, &key.secret).unwrap();
+        assert_eq!(proof, expected_proof);
     }
 
     #[test]
