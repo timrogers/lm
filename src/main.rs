@@ -229,6 +229,12 @@ async fn main() -> Result<()> {
             // Try to load stored credentials first
             let credentials = match config::load_config() {
                 Ok(config) => {
+                    // Check if the config has a version field - if not, the user needs to log in again
+                    if config.version.is_none() {
+                        return Err(anyhow::anyhow!(
+                            "Your configuration file is from an older version of the CLI. Please run 'lm login' again to update it."
+                        ));
+                    }
                     debug!("Using stored credentials for user: {}", config.username);
                     Credentials::from(config)
                 }

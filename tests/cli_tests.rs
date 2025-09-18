@@ -150,6 +150,38 @@ async fn test_cli_verbose_flag_functionality() {
     assert!(stdout.contains("Logged out successfully"));
 }
 
+#[tokio::test]
+async fn test_cli_rejects_config_without_version() {
+    // Test that authenticated commands reject config files without version field
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Create a temporary directory to simulate a user's home directory
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config_path = temp_dir.path().join(".lm.yml");
+
+    // Create a config file without version field (simulating old CLI version)
+    let old_config = r#"
+username: test@example.com
+access_token: fake_access_token
+refresh_token: fake_refresh_token
+"#;
+
+    fs::write(&config_path, old_config).expect("Failed to write test config");
+
+    // Test that machines command rejects the config without version
+    let output = Command::new(CLI_BINARY)
+        .arg("machines")
+        .env("HOME", temp_dir.path())
+        .output()
+        .expect("Failed to execute CLI");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("older version of the CLI"));
+    assert!(stderr.contains("Please run 'lm login' again"));
+}
+
 // Note: We could add more comprehensive CLI tests that actually hit mocked endpoints,
 // but that would require modifying the CLI to accept a custom base URL parameter,
 // which might not be worth the complexity for this project.
