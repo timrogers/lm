@@ -48,10 +48,15 @@
 pub mod auth;
 pub mod client;
 pub mod config;
+pub mod installation_key;
 pub mod types;
 
 // Export new library interface
 pub use auth::{is_token_expired, ApiClient, AuthenticationClient, TokenRefreshCallback};
+pub use installation_key::{
+    generate_extra_request_headers, generate_installation_id, generate_installation_key,
+    generate_request_proof, InstallationKey,
+};
 pub use types::Credentials;
 
 // Export legacy interface for backward compatibility

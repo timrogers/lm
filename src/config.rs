@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::installation_key::InstallationKey;
 use crate::types::Credentials;
 
 /// Configuration data stored in ~/.lm.yml
@@ -13,6 +14,9 @@ pub struct Config {
     pub username: String,
     pub access_token: String,
     pub refresh_token: String,
+    /// Installation key for new authentication system
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installation_key: Option<InstallationKey>,
 }
 
 impl From<&Credentials> for Config {
@@ -21,6 +25,7 @@ impl From<&Credentials> for Config {
             username: credentials.username.clone(),
             access_token: credentials.access_token.clone(),
             refresh_token: credentials.refresh_token.clone(),
+            installation_key: credentials.installation_key.clone(),
         }
     }
 }
@@ -31,6 +36,7 @@ impl From<Config> for Credentials {
             username: config.username,
             access_token: config.access_token,
             refresh_token: config.refresh_token,
+            installation_key: config.installation_key,
         }
     }
 }
@@ -54,11 +60,19 @@ pub fn load_config() -> Result<Config> {
     let content = fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
 
-    let config: Config = serde_yaml::from_str(&content)
-        .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
-
-    debug!("Loaded configuration for user: {}", config.username);
-    Ok(config)
+    // First attempt to parse as full Config. If required fields are missing, return a clearer error.
+    match serde_yaml::from_str::<Config>(&content) {
+        Ok(config) => {
+            debug!("Loaded configuration for user: {}", config.username);
+            return Ok(config);
+        }
+        Err(_) => {
+            // If the file exists but isn't a full config (e.g., only installation_key), surface a friendly error
+            return Err(anyhow::anyhow!(
+                "Configuration incomplete. Please run 'lm login' first."
+            ));
+        }
+    }
 }
 
 /// Save configuration to ~/.lm.yml
@@ -71,6 +85,71 @@ pub fn save_config(config: &Config) -> Result<()> {
         .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
 
     debug!("Saved configuration for user: {}", config.username);
+    Ok(())
+}
+
+/// Load only the installation key from the main config file if present
+pub fn load_installation_key_partial() -> Result<InstallationKey> {
+    let path = get_config_path()?;
+    if !path.exists() {
+        return Err(anyhow::anyhow!("Installation key not found"));
+    }
+
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+
+    let mut value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+
+    if let Some(install_val) = value.get_mut("installation_key") {
+        let key: InstallationKey = serde_yaml::from_value(install_val.clone())
+            .context("Failed to parse installation_key from config")?;
+        debug!(
+            "Loaded installation key from main config: {}",
+            key.installation_id
+        );
+        Ok(key)
+    } else {
+        Err(anyhow::anyhow!("Installation key not found"))
+    }
+}
+
+/// Save/update only the installation key inside the main config file
+pub fn save_installation_key_partial(key: &InstallationKey) -> Result<()> {
+    let path = get_config_path()?;
+    let mut root = if path.exists() {
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+        serde_yaml::from_str::<serde_yaml::Value>(&content)
+            .with_context(|| format!("Failed to parse config file: {}", path.display()))?
+    } else {
+        serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
+    };
+
+    let key_val = serde_yaml::to_value(key).context("Failed to serialize installation key")?;
+
+    if let serde_yaml::Value::Mapping(ref mut map) = root {
+        map.insert(
+            serde_yaml::Value::String("installation_key".to_string()),
+            key_val,
+        );
+    } else {
+        // If the root isn't a mapping, replace it with a mapping
+        let mut map = serde_yaml::Mapping::new();
+        map.insert(
+            serde_yaml::Value::String("installation_key".to_string()),
+            key_val,
+        );
+        root = serde_yaml::Value::Mapping(map);
+    }
+
+    let content = serde_yaml::to_string(&root).context("Failed to serialize YAML")?;
+    fs::write(&path, content)
+        .with_context(|| format!("Failed to write config file: {}", path.display()))?;
+    debug!(
+        "Saved installation key to main config: {}",
+        key.installation_id
+    );
     Ok(())
 }
 
@@ -99,6 +178,7 @@ mod tests {
             username: "test@example.com".to_string(),
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
+            installation_key: None,
         };
 
         let config = Config::from(&credentials);
@@ -118,6 +198,7 @@ mod tests {
             username: "test@example.com".to_string(),
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
+            installation_key: None,
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();
