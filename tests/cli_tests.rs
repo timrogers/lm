@@ -170,11 +170,16 @@ refresh_token: fake_refresh_token
     fs::write(&config_path, old_config).expect("Failed to write test config");
 
     // Test that machines command rejects the config without version
-    let output = Command::new(CLI_BINARY)
-        .arg("machines")
-        .env("HOME", temp_dir.path())
-        .output()
-        .expect("Failed to execute CLI");
+    let mut cmd = Command::new(CLI_BINARY);
+    cmd.arg("machines");
+
+    // Set the appropriate home directory environment variable based on platform
+    #[cfg(windows)]
+    cmd.env("USERPROFILE", temp_dir.path());
+    #[cfg(not(windows))]
+    cmd.env("HOME", temp_dir.path());
+
+    let output = cmd.output().expect("Failed to execute CLI");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
