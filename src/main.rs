@@ -148,18 +148,34 @@ async fn get_or_create_installation_key() -> Result<InstallationKey> {
         }
     }
 
+    // Try to load previously persisted installation key (pre-login) from main config
+    if let Ok(installation_key) = config::load_installation_key_partial() {
+        debug!("Using persisted installation key from temporary store");
+        return Ok(installation_key);
+    }
+
     // Generate new installation key
     let installation_id = generate_installation_id();
     let installation_key = generate_installation_key(installation_id)?;
-    
-    debug!("Generated new installation key: {}", installation_key.installation_id);
-    
+
+    debug!(
+        "Generated new installation key: {}",
+        installation_key.installation_id
+    );
+
+    // Persist the installation key immediately in the main config so it's reused even if login fails
+    if let Err(e) = config::save_installation_key_partial(&installation_key) {
+        warn!("Failed to persist installation key pre-login: {}", e);
+    } else {
+        debug!("Persisted installation key pre-login");
+    }
+
     // Register the new client
     let auth_client = AuthenticationClient::new();
     auth_client.register_client(&installation_key).await?;
-    
+
     info!("Registered new client with La Marzocco");
-    
+
     Ok(installation_key)
 }
 
@@ -196,6 +212,8 @@ async fn main() -> Result<()> {
             // Save tokens to config file
             let config = config::Config::from(&tokens);
             config::save_config(&config)?;
+
+            // No cleanup needed: full config write includes installation key
 
             println!("✅ Authentication successful! Credentials saved to ~/.lm.yml.");
             return Ok(());

@@ -5,7 +5,9 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::installation_key::{generate_extra_request_headers, generate_request_proof, InstallationKey};
+use crate::installation_key::{
+    generate_extra_request_headers, generate_request_proof, InstallationKey,
+};
 use crate::types::Credentials;
 
 #[derive(Serialize)]
@@ -138,7 +140,7 @@ impl AuthenticationClient {
             reqwest::header::HeaderValue::from_str(&installation_key.installation_id)?,
         );
         headers.insert(
-            "X-Request-Proof", 
+            "X-Request-Proof",
             reqwest::header::HeaderValue::from_str(&proof)?,
         );
 
@@ -162,18 +164,19 @@ impl AuthenticationClient {
         } else {
             let error_text = response.text().await?;
             debug!("Client registration failed: {}", error_text);
-            
+
             if status.as_u16() == 401 {
                 return Err(anyhow::anyhow!("Registration failed: Invalid credentials"));
             }
-            
+
             Err(anyhow::anyhow!("Registration failed: {}", error_text))
         }
     }
 
     /// Login with username and password to get authentication tokens
     pub async fn login(&self, username: &str, password: &str) -> Result<Credentials> {
-        self.login_with_installation_key(username, password, None).await
+        self.login_with_installation_key(username, password, None)
+            .await
     }
 
     /// Login with username, password and installation key
@@ -258,9 +261,10 @@ impl AuthenticationClient {
 
     /// Refresh access token using refresh token  
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<Credentials> {
-        self.refresh_token_with_installation_key(refresh_token, None).await
+        self.refresh_token_with_installation_key(refresh_token, None)
+            .await
     }
-    
+
     /// Refresh access token using refresh token and installation key
     pub async fn refresh_token_with_installation_key(
         &self,
@@ -803,7 +807,8 @@ mod tests {
 
         // Test that login_with_installation_key method accepts installation key
         let auth_client = AuthenticationClient::new();
-        let installation_key = generate_installation_key("test-installation-id".to_string()).unwrap();
+        let installation_key =
+            generate_installation_key("test-installation-id".to_string()).unwrap();
 
         // We can't test the actual HTTP call in unit tests, but we can verify the method compiles
         // and accepts the correct parameters
@@ -818,7 +823,8 @@ mod tests {
     fn test_api_client_with_installation_key() {
         use crate::installation_key::generate_installation_key;
 
-        let installation_key = generate_installation_key("test-installation-id".to_string()).unwrap();
+        let installation_key =
+            generate_installation_key("test-installation-id".to_string()).unwrap();
         let tokens = Credentials {
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
@@ -827,7 +833,10 @@ mod tests {
         };
 
         let api_client = ApiClient::new(tokens.clone(), None);
-        assert_eq!(api_client.base_url, "https://lion.lamarzocco.io/api/customer-app");
+        assert_eq!(
+            api_client.base_url,
+            "https://lion.lamarzocco.io/api/customer-app"
+        );
         assert_eq!(api_client.credentials.access_token, "access123");
         assert!(api_client.credentials.installation_key.is_some());
     }

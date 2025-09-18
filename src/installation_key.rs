@@ -63,7 +63,7 @@ pub fn generate_installation_key(installation_id: String) -> Result<Installation
     let public_key_der = verifying_key.to_public_key_der().unwrap();
     let pub_b64 = STANDARD.encode(public_key_der.as_bytes());
 
-    // Create installation hash  
+    // Create installation hash
     let mut hasher = Sha256::new();
     hasher.update(installation_id.as_bytes());
     let inst_hash = hasher.finalize();
@@ -95,7 +95,9 @@ pub fn generate_request_proof(base_string: &str, secret32: &[u8]) -> Result<Stri
         return Err(anyhow::anyhow!("secret must be 32 bytes"));
     }
 
-    let mut work = secret32.to_vec(); // Make mutable copy
+    // Use a fixed-size stack buffer to avoid heap allocation
+    let mut work = [0u8; 32];
+    work.copy_from_slice(secret32);
 
     for byte_val in base_string.as_bytes() {
         let idx = (*byte_val as usize) % 32;
@@ -119,7 +121,9 @@ pub fn generate_request_proof(base_string: &str, secret32: &[u8]) -> Result<Stri
 }
 
 /// Generate extra headers for normal API calls after authentication
-pub fn generate_extra_request_headers(installation_key: &InstallationKey) -> Result<Vec<(String, String)>> {
+pub fn generate_extra_request_headers(
+    installation_key: &InstallationKey,
+) -> Result<Vec<(String, String)>> {
     // Generate nonce and timestamp
     let nonce = Uuid::new_v4().to_string().to_lowercase();
     let timestamp = SystemTime::now()
@@ -128,7 +132,10 @@ pub fn generate_extra_request_headers(installation_key: &InstallationKey) -> Res
         .to_string();
 
     // Create proof using Y5.e algorithm: installation_id.nonce.timestamp
-    let proof_input = format!("{}.{}.{}", installation_key.installation_id, nonce, timestamp);
+    let proof_input = format!(
+        "{}.{}.{}",
+        installation_key.installation_id, nonce, timestamp
+    );
     let proof = generate_request_proof(&proof_input, &installation_key.secret)?;
 
     // Create signature data: installation_id.nonce.timestamp.proof
@@ -140,7 +147,10 @@ pub fn generate_extra_request_headers(installation_key: &InstallationKey) -> Res
 
     // Return headers
     Ok(vec![
-        ("X-App-Installation-Id".to_string(), installation_key.installation_id.clone()),
+        (
+            "X-App-Installation-Id".to_string(),
+            installation_key.installation_id.clone(),
+        ),
         ("X-Timestamp".to_string(), timestamp),
         ("X-Nonce".to_string(), nonce),
         ("X-Request-Signature".to_string(), signature_b64),
@@ -148,7 +158,7 @@ pub fn generate_extra_request_headers(installation_key: &InstallationKey) -> Res
 }
 
 /// Serde helper functions for serialization
-fn serialize_bytes_as_base64<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_bytes_as_base64<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -161,12 +171,13 @@ where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    STANDARD
-        .decode(s)
-        .map_err(serde::de::Error::custom)
+    STANDARD.decode(s).map_err(serde::de::Error::custom)
 }
 
-fn serialize_signing_key_as_base64<S>(signing_key: &SigningKey, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_signing_key_as_base64<S>(
+    signing_key: &SigningKey,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -180,11 +191,8 @@ where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    let bytes = STANDARD
-        .decode(s)
-        .map_err(serde::de::Error::custom)?;
-    let secret_key = SecretKey::from_slice(&bytes)
-        .map_err(serde::de::Error::custom)?;
+    let bytes = STANDARD.decode(s).map_err(serde::de::Error::custom)?;
+    let secret_key = SecretKey::from_slice(&bytes).map_err(serde::de::Error::custom)?;
     Ok(SigningKey::from(secret_key))
 }
 
@@ -196,10 +204,10 @@ mod tests {
     fn test_installation_id_generation() {
         let id1 = generate_installation_id();
         let id2 = generate_installation_id();
-        
+
         // IDs should be different
         assert_ne!(id1, id2);
-        
+
         // IDs should be valid UUIDs (36 characters with dashes)
         assert_eq!(id1.len(), 36);
         assert_eq!(id2.len(), 36);
@@ -211,14 +219,14 @@ mod tests {
     fn test_installation_key_generation() {
         let installation_id = "test-installation-id".to_string();
         let key = generate_installation_key(installation_id.clone()).unwrap();
-        
+
         assert_eq!(key.installation_id, installation_id);
         assert_eq!(key.secret.len(), 32);
-        
+
         // Test that we can get public key
         let pub_key_b64 = key.public_key_b64();
         assert!(!pub_key_b64.is_empty());
-        
+
         // Test base string format
         let base_string = key.base_string();
         assert!(base_string.starts_with(&installation_id));
@@ -229,10 +237,10 @@ mod tests {
     fn test_request_proof_generation() {
         let secret = vec![0u8; 32]; // All zeros for testing
         let base_string = "test.base.string";
-        
+
         let proof = generate_request_proof(base_string, &secret).unwrap();
         assert!(!proof.is_empty());
-        
+
         // Should be base64 encoded SHA256 hash (44 characters)
         assert_eq!(proof.len(), 44);
     }
@@ -241,7 +249,7 @@ mod tests {
     fn test_request_proof_error_on_wrong_secret_size() {
         let secret = vec![0u8; 31]; // Wrong size
         let base_string = "test";
-        
+
         let result = generate_request_proof(base_string, &secret);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("32 bytes"));
@@ -251,21 +259,22 @@ mod tests {
     fn test_extra_request_headers_generation() {
         let installation_id = "test-id".to_string();
         let key = generate_installation_key(installation_id.clone()).unwrap();
-        
+
         let headers = generate_extra_request_headers(&key).unwrap();
-        
+
         // Should have 4 headers
         assert_eq!(headers.len(), 4);
-        
+
         // Check header names
         let header_names: Vec<String> = headers.iter().map(|(k, _)| k.clone()).collect();
         assert!(header_names.contains(&"X-App-Installation-Id".to_string()));
         assert!(header_names.contains(&"X-Timestamp".to_string()));
         assert!(header_names.contains(&"X-Nonce".to_string()));
         assert!(header_names.contains(&"X-Request-Signature".to_string()));
-        
+
         // Check installation ID matches
-        let installation_id_header = headers.iter()
+        let installation_id_header = headers
+            .iter()
             .find(|(k, _)| k == "X-App-Installation-Id")
             .unwrap();
         assert_eq!(installation_id_header.1, installation_id);
@@ -274,20 +283,21 @@ mod tests {
     #[test]
     fn test_cross_language_compatibility() {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
-        use p256::{pkcs8::DecodePrivateKey, ecdsa::SigningKey};
+        use p256::{ecdsa::SigningKey, pkcs8::DecodePrivateKey};
 
         // Test data generated from Python implementation
         let installation_id = "test-installation-id-12345";
         let expected_secret = "liWQoHaK8Sg+auapkWedGzGs/8HDt6JCIP3tw2c8WYA=";
         let private_key_der = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg25BwIri/hrmMdfAvHgbFk9TQ/nmA70OYEdmrFuhbux+hRANCAASSLyaAtUj6jGO/F2VQJMN9XNGQkNMZNktiENHlVgMKaTrTMXuR/dyQU/4boce+LqcHoOBjZVDYz5JsXyKM6qyE";
         let expected_public_key_der = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEki8mgLVI+oxjvxdlUCTDfVzRkJDTGTZLYhDR5VYDCmk60zF7kf3ckFP+G6HHvi6nB6DgY2VQ2M+SbF8ijOqshA==";
-        let expected_base_string = "test-installation-id-12345.eZhZZDD3ciI13+s7zV9QlgLW9Eo+lDKGJAKUn8SpAtA=";
+        let expected_base_string =
+            "test-installation-id-12345.eZhZZDD3ciI13+s7zV9QlgLW9Eo+lDKGJAKUn8SpAtA=";
 
         // Decode the private key and reconstruct InstallationKey
         let private_key_bytes = STANDARD.decode(private_key_der).unwrap();
         let signing_key = SigningKey::from_pkcs8_der(&private_key_bytes).unwrap();
         let secret_bytes = STANDARD.decode(expected_secret).unwrap();
-        
+
         let key = InstallationKey {
             secret: secret_bytes,
             private_key: signing_key,
@@ -309,16 +319,16 @@ mod tests {
     fn test_installation_key_serialization() {
         let installation_id = "test-id".to_string();
         let key = generate_installation_key(installation_id.clone()).unwrap();
-        
+
         // Test JSON serialization
         let json = serde_json::to_string(&key).unwrap();
         assert!(!json.is_empty());
-        
+
         // Test deserialization
         let deserialized: InstallationKey = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.installation_id, key.installation_id);
         assert_eq!(deserialized.secret, key.secret);
-        
+
         // Verify keys work the same
         assert_eq!(deserialized.public_key_b64(), key.public_key_b64());
         assert_eq!(deserialized.base_string(), key.base_string());
