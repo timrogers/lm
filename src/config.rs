@@ -17,6 +17,9 @@ pub struct Config {
     /// Installation key for new authentication system
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installation_key: Option<InstallationKey>,
+    /// Version of the CLI that created or last updated this configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 impl From<&Credentials> for Config {
@@ -26,6 +29,7 @@ impl From<&Credentials> for Config {
             access_token: credentials.access_token.clone(),
             refresh_token: credentials.refresh_token.clone(),
             installation_key: credentials.installation_key.clone(),
+            version: Some(env!("CARGO_PKG_VERSION").to_string()),
         }
     }
 }
@@ -64,13 +68,13 @@ pub fn load_config() -> Result<Config> {
     match serde_yaml::from_str::<Config>(&content) {
         Ok(config) => {
             debug!("Loaded configuration for user: {}", config.username);
-            return Ok(config);
+            Ok(config)
         }
         Err(_) => {
             // If the file exists but isn't a full config (e.g., only installation_key), surface a friendly error
-            return Err(anyhow::anyhow!(
+            Err(anyhow::anyhow!(
                 "Configuration incomplete. Please run 'lm login' first."
-            ));
+            ))
         }
     }
 }
@@ -127,11 +131,16 @@ pub fn save_installation_key_partial(key: &InstallationKey) -> Result<()> {
     };
 
     let key_val = serde_yaml::to_value(key).context("Failed to serialize installation key")?;
+    let version_val = serde_yaml::Value::String(env!("CARGO_PKG_VERSION").to_string());
 
     if let serde_yaml::Value::Mapping(ref mut map) = root {
         map.insert(
             serde_yaml::Value::String("installation_key".to_string()),
             key_val,
+        );
+        map.insert(
+            serde_yaml::Value::String("version".to_string()),
+            version_val,
         );
     } else {
         // If the root isn't a mapping, replace it with a mapping
@@ -139,6 +148,10 @@ pub fn save_installation_key_partial(key: &InstallationKey) -> Result<()> {
         map.insert(
             serde_yaml::Value::String("installation_key".to_string()),
             key_val,
+        );
+        map.insert(
+            serde_yaml::Value::String("version".to_string()),
+            version_val,
         );
         root = serde_yaml::Value::Mapping(map);
     }
@@ -185,6 +198,7 @@ mod tests {
         assert_eq!(config.username, "test@example.com");
         assert_eq!(config.access_token, "access123");
         assert_eq!(config.refresh_token, "refresh456");
+        assert_eq!(config.version, Some(env!("CARGO_PKG_VERSION").to_string()));
 
         let back_to_credentials = Credentials::from(config);
         assert_eq!(back_to_credentials.username, credentials.username);
@@ -199,16 +213,67 @@ mod tests {
             access_token: "access123".to_string(),
             refresh_token: "refresh456".to_string(),
             installation_key: None,
+            version: Some("0.2.1".to_string()),
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("username: test@example.com"));
         assert!(yaml.contains("access_token: access123"));
         assert!(yaml.contains("refresh_token: refresh456"));
+        assert!(yaml.contains("version: 0.2.1"));
 
         let parsed: Config = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(parsed.username, config.username);
         assert_eq!(parsed.access_token, config.access_token);
         assert_eq!(parsed.refresh_token, config.refresh_token);
+        assert_eq!(parsed.version, config.version);
+    }
+
+    #[test]
+    fn test_config_backwards_compatibility() {
+        // Test that we can load configs created by older versions without the version field
+        let old_config_yaml = r#"
+username: test@example.com
+access_token: access123
+refresh_token: refresh456
+"#;
+
+        let parsed: Config = serde_yaml::from_str(old_config_yaml).unwrap();
+        assert_eq!(parsed.username, "test@example.com");
+        assert_eq!(parsed.access_token, "access123");
+        assert_eq!(parsed.refresh_token, "refresh456");
+        assert_eq!(parsed.version, None); // Should be None for old configs
+        assert!(parsed.installation_key.is_none());
+    }
+
+    #[test]
+    fn test_version_included_in_new_configs() {
+        // Test that full config created from credentials includes version
+        let credentials = crate::types::Credentials {
+            username: "test@example.com".to_string(),
+            access_token: "access123".to_string(),
+            refresh_token: "refresh456".to_string(),
+            installation_key: None,
+        };
+
+        let config = Config::from(&credentials);
+        let config_yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(config_yaml.contains("version:"));
+        assert!(config_yaml.contains(env!("CARGO_PKG_VERSION")));
+
+        // Test that version is included when saving installation key partial
+        let mut root = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let version_val = serde_yaml::Value::String(env!("CARGO_PKG_VERSION").to_string());
+
+        if let serde_yaml::Value::Mapping(ref mut map) = root {
+            map.insert(
+                serde_yaml::Value::String("version".to_string()),
+                version_val,
+            );
+        }
+
+        let content = serde_yaml::to_string(&root).unwrap();
+        assert!(content.contains("version:"));
+        assert!(content.contains(env!("CARGO_PKG_VERSION")));
     }
 }

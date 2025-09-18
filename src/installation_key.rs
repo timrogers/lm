@@ -115,7 +115,7 @@ pub fn generate_request_proof(base_string: &str, secret32: &[u8]) -> Result<Stri
     }
 
     let mut hasher = Sha256::new();
-    hasher.update(&work);
+    hasher.update(work);
     let result = hasher.finalize();
     Ok(STANDARD.encode(result))
 }
