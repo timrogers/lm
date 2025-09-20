@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use dirs::home_dir;
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -47,6 +48,27 @@ impl From<Config> for Credentials {
 
 /// Get the path to the configuration file (~/.lm.yml)
 pub fn get_config_path() -> Result<PathBuf> {
+    if let Some(home_override) = env::var_os("LM_HOME") {
+        let candidate = PathBuf::from(home_override);
+        if !candidate.as_os_str().is_empty() {
+            return Ok(candidate.join(".lm.yml"));
+        }
+    }
+
+    #[cfg(windows)]
+    let env_vars = ["USERPROFILE", "HOME"];
+    #[cfg(not(windows))]
+    let env_vars = ["HOME"];
+
+    for key in env_vars {
+        if let Some(value) = env::var_os(key) {
+            let candidate = PathBuf::from(value);
+            if !candidate.as_os_str().is_empty() {
+                return Ok(candidate.join(".lm.yml"));
+            }
+        }
+    }
+
     let home = home_dir().context("Failed to determine home directory")?;
     Ok(home.join(".lm.yml"))
 }
