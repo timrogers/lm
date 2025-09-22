@@ -40,4 +40,4 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 [dev-dependencies]
 mockito = "1.2"
 wiremock = "0.6"
-tempfile = "3.8"
+tempfile = "3.22"
